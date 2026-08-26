@@ -1,0 +1,100 @@
+/* Минимальное оформление — сайт личный, поэтому без анимаций и лишних эффектов. */
+
+:root{
+  --bg: #0b0b12;
+  --panel: #15131f;
+  --border: #2a2440;
+  --purple: #a78bfa;
+  --blue: #5b9dff;
+  --white: #f3f2fa;
+  --muted: #9692ad;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin: 0;
+  background: var(--bg);
+  color: var(--white);
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+.wrap{ max-width: 860px; margin: 0 auto; padding: 0 16px; }
+
+/* ---- header ---- */
+.topbar{
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 0;
+  position: sticky;
+  top: 0;
+}
+.title-row{ display: flex; justify-content: space-between; align-items: baseline; }
+.title-row h1{ font-size: 18px; margin: 0; }
+.pct{ font-family: monospace; color: var(--muted); }
+
+.bar-outer{
+  margin-top: 10px; height: 8px; border-radius: 5px;
+  background: #1c1930; overflow: hidden;
+}
+.bar-inner{ height: 100%; background: linear-gradient(90deg, var(--purple), var(--blue)); }
+.counts{ font-size: 12px; color: var(--muted); margin-top: 6px; font-family: monospace; }
+
+.phase-nav{ margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.phase-nav a{ font-size: 12.5px; text-decoration: none; color: var(--muted); border-left: 3px solid var(--border); padding-left: 6px; }
+.phase-nav a.track-py{ border-left-color: var(--purple); }
+.phase-nav a.track-go{ border-left-color: var(--blue); }
+.phase-nav a.track-project{ border-left-color: var(--white); }
+.phase-nav a:hover{ color: var(--white); }
+
+/* ---- phases ---- */
+main.wrap{ padding-top: 20px; padding-bottom: 40px; }
+
+details.phase{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+details.phase > summary{
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  border-left: 4px solid var(--border);
+}
+details.phase.track-py > summary{ border-left-color: var(--purple); }
+details.phase.track-go > summary{ border-left-color: var(--blue); }
+details.phase.track-project > summary{ border-left-color: var(--white); }
+details.phase > summary::-webkit-details-marker{ display: none; }
+
+.ph-title h3{ margin: 0; font-size: 15px; display: inline; }
+.ph-meta{ display: block; font-size: 11.5px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+.ph-progress{ font-family: monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.ph-body{ padding: 4px 16px 14px 18px; border-top: 1px solid var(--border); }
+.ph-why{ font-size: 13px; color: var(--muted); margin: 10px 0 12px; }
+
+ul.lessons{ list-style: none; margin: 0; padding: 0; }
+ul.lessons li{
+  padding: 9px 0; border-bottom: 1px dashed var(--border);
+  display: flex; gap: 10px; align-items: flex-start;
+}
+ul.lessons li:last-child{ border-bottom: none; }
+ul.lessons form.toggle-form{ margin: 0; padding-top: 3px; }
+ul.lessons input[type=checkbox]{ width: 16px; height: 16px; accent-color: var(--purple); cursor: pointer; }
+.track-go input[type=checkbox]{ accent-color: var(--blue); }
+ul.lessons label{ font-size: 14px; cursor: pointer; }
+ul.lessons li.done label{ color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
+.lesson-text, .task{ display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.task{ font-family: monospace; }
+
+/* ---- footer ---- */
+.footer{ padding: 10px 16px 40px; }
+.reset-btn{
+  font-family: monospace; font-size: 12px; color: var(--muted);
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 12px; cursor: pointer;
+}
+.reset-btn:hover{ color: var(--white); border-color: var(--purple); }

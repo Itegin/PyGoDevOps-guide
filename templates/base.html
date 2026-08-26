@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python + Go → DevOps — мой гайд</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <div class="title-row">
+        <h1>Python + Go → DevOps</h1>
+        <span id="pct" class="pct">{{ percent }}%</span>
+      </div>
+      <div class="bar-outer"><div class="bar-inner" id="bar" style="width: {{ percent }}%;"></div></div>
+      <div class="counts"><span id="counts">{{ total_done }}/{{ total_all }}</span> уроков выполнено</div>
+
+      <nav class="phase-nav">
+        {% for phase in phases %}
+        <a href="#{{ phase.code }}" class="track-{{ phase.track }}">{{ phase.title }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="wrap footer">
+    <form method="post" action="{{ url_for('reset') }}" onsubmit="return confirm('Сбросить весь прогресс?');">
+      <button type="submit" class="reset-btn">Сбросить прогресс</button>
+    </form>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

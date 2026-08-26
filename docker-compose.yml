@@ -1,0 +1,16 @@
+services:
+  roadmap:
+    build: .
+    container_name: roadmap-site
+    restart: unless-stopped
+    ports:
+      # host:container — сайт будет доступен на самом сервере и в локалке
+      # по адресу http://<IP-сервера>:8080
+      - "8080:5000"
+    volumes:
+      # Именованный volume вместо bind-mount: Docker сам управляет местом
+      # на диске, а данные переживают "docker compose down" и пересборки.
+      - progress-data:/app/db
+
+volumes:
+  progress-data:

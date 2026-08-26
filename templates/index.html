@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+  {% for phase in phases %}
+  <details class="phase track-{{ phase.track }}" id="{{ phase.code }}" open>
+    <summary>
+      <span class="ph-title">
+        <h3>{{ phase.title }}</h3>
+        <span class="ph-meta">{{ phase.meta }}</span>
+      </span>
+      <span class="ph-progress" data-phase="{{ phase.code }}">{{ phase.phase_done }}/{{ phase.phase_total }}</span>
+    </summary>
+
+    <div class="ph-body">
+      {% if phase.why %}<p class="ph-why">{{ phase.why }}</p>{% endif %}
+
+      <ul class="lessons">
+        {% for lesson in phase.lessons %}
+        <li class="{{ 'done' if lesson.done else '' }}" data-lesson-li="{{ lesson.id }}">
+          <form method="post" action="{{ url_for('toggle', lesson_id=lesson.id) }}" class="toggle-form">
+            <input
+              type="checkbox"
+              id="{{ lesson.id }}"
+              data-id="{{ lesson.id }}"
+              onchange="this.form.requestSubmit()"
+              {{ 'checked' if lesson.done else '' }}
+            >
+          </form>
+          <label for="{{ lesson.id }}">
+            <b>{{ lesson.title }}</b>
+            {% if lesson.text %}<span class="lesson-text">{{ lesson.text }}</span>{% endif %}
+            {% if lesson.task %}<span class="task">🔧 {{ lesson.task }}</span>{% endif %}
+          </label>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </details>
+  {% endfor %}
+{% endblock %}
