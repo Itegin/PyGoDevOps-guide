@@ -30,6 +30,13 @@
             <b>{{ lesson.title }}</b>
             {% if lesson.text %}<span class="lesson-text">{{ lesson.text }}</span>{% endif %}
             {% if lesson.task %}<span class="task">🔧 {{ lesson.task }}</span>{% endif %}
+            {% if lesson.links %}
+            <span class="links">
+              {% for link in lesson.links %}
+              <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.title }}</a>
+              {% endfor %}
+            </span>
+            {% endif %}
           </label>
         </li>
         {% endfor %}
