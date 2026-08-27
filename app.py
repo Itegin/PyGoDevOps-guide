@@ -69,10 +69,14 @@ def get_progress_map():
     return {row["lesson_id"]: bool(row["done"]) for row in rows}
 
 
-def build_phases_with_progress():
+def build_phases_with_progress(progress=None):
     """Собирает данные для шаблона: фазы + уроки + флаг done у каждого урока
-    + счётчики (сделано/всего) на каждую фазу."""
-    progress = get_progress_map()
+    + счётчики (сделано/всего) на каждую фазу.
+
+    progress можно передать снаружи, если карта прогресса уже прочитана, —
+    так страница урока обходится одним чтением БД вместо двух."""
+    if progress is None:
+        progress = get_progress_map()
     phases = []
     total_done, total_all = 0, 0
 
@@ -94,6 +98,11 @@ def build_phases_with_progress():
         total_all += len(lessons)
 
     return phases, total_done, total_all
+
+
+def calc_percent(total_done, total_all):
+    """Процент выполнения курса — то, что видно в шапке рядом с прогресс-баром."""
+    return round((total_done / total_all) * 100) if total_all else 0
 
 
 # Плоский список уроков в порядке прохождения курса — считаем один раз при
@@ -120,13 +129,29 @@ def find_lesson(lesson_id):
     return None, None, None, None
 
 
+def find_continue_lesson(progress):
+    """Первый по порядку курса урок, который ещё не отмечен пройденным —
+    именно на него ведёт кнопка "Продолжить" на главной.
+    Возвращает элемент FLAT_LESSONS или None, если пройдено вообще всё."""
+    for entry in FLAT_LESSONS:
+        if not progress.get(entry["lesson"]["id"], False):
+            return entry
+    return None
+
+
 @app.route("/lesson/<lesson_id>")
 def lesson_detail(lesson_id):
     phase, lesson, prev_entry, next_entry = find_lesson(lesson_id)
     if lesson is None:
         return "Урок не найден", 404
 
-    done = get_progress_map().get(lesson_id, False)
+    progress = get_progress_map()
+    done = progress.get(lesson_id, False)
+
+    # Шапка (прогресс-бар, счётчики, навигация по фазам) живёт в base.html и
+    # рисуется на каждой странице — значит, её данные нужны и здесь, иначе на
+    # странице урока бар остаётся пустым, а список фаз — вообще не выводится.
+    phases, total_done, total_all = build_phases_with_progress(progress)
 
     # extensions: fenced_code — блоки ```python ... ```; tables — таблицы;
     # sane_lists — списки ведут себя предсказуемо (частая боль ванильного markdown).
@@ -137,6 +162,10 @@ def lesson_detail(lesson_id):
 
     return render_template(
         "lesson_detail.html",
+        phases=phases,
+        total_done=total_done,
+        total_all=total_all,
+        percent=calc_percent(total_done, total_all),
         phase=phase,
         lesson={**lesson, "done": done},
         content_html=content_html,
@@ -147,14 +176,20 @@ def lesson_detail(lesson_id):
 
 @app.route("/")
 def index():
-    phases, total_done, total_all = build_phases_with_progress()
-    percent = round((total_done / total_all) * 100) if total_all else 0
+    progress = get_progress_map()
+    phases, total_done, total_all = build_phases_with_progress(progress)
+    continue_entry = find_continue_lesson(progress)
     return render_template(
         "index.html",
         phases=phases,
         total_done=total_done,
         total_all=total_all,
-        percent=percent,
+        percent=calc_percent(total_done, total_all),
+        continue_entry=continue_entry,
+        # Раскрытой по умолчанию оставляем только ту фазу, в которой лежит
+        # следующий незакрытый урок: остальные свёрнуты, чтобы список не
+        # растягивался на несколько экранов.
+        open_phase=continue_entry["phase"]["code"] if continue_entry else None,
     )
 
 

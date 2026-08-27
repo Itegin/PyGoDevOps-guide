@@ -4,13 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Python + Go → DevOps — мой гайд</title>
+
+  <!-- Подсветка синтаксиса в конспектах уроков (highlight.js с CDN).
+       Тема нужна только как каркас: её цвета мы переопределяем в style.css
+       под свою палитру, поэтому наш style.css подключается ПОСЛЕ неё. -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <header class="topbar">
     <div class="wrap">
       <div class="title-row">
-        <h1>Python + Go → DevOps</h1>
+        <a class="home-link" href="{{ url_for('index') }}"><h1>Python + Go → DevOps</h1></a>
         <span id="pct" class="pct">{{ percent }}%</span>
       </div>
       <div class="bar-outer"><div class="bar-inner" id="bar" style="width: {{ percent }}%;"></div></div>
@@ -18,7 +25,7 @@
 
       <nav class="phase-nav">
         {% for phase in phases %}
-        <a href="#{{ phase.code }}" class="track-{{ phase.track }}">{{ phase.title }}</a>
+        <a href="{{ url_for('index') }}#{{ phase.code }}" class="track-{{ phase.track }}">{{ phase.title }}</a>
         {% endfor %}
       </nav>
     </div>
@@ -33,6 +40,26 @@
       <button type="submit" class="reset-btn">Сбросить прогресс</button>
     </form>
   </footer>
+
+  <!-- Прилипшая панель "предыдущий / следующий" на странице урока. -->
+  {% block bottombar %}{% endblock %}
+
+  <!-- Все три файла highlight.js идут с defer и в этом порядке: языки
+       регистрируются только после того, как загрузилось ядро. -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/powershell.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    // defer-скрипты выполняются до DOMContentLoaded, так что к этому моменту
+    // hljs уже есть. Проверка window.hljs — на случай, если CDN недоступен
+    // (сайт живёт в домашней сети и может работать без интернета).
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.hljs) window.hljs.highlightAll();
+    });
+  </script>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

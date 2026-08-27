@@ -1,8 +1,25 @@
 {% extends "base.html" %}
 
 {% block content %}
+  {# Точка входа "продолжить с того места, где остановился". Обе карточки
+     рендерятся всегда, лишняя скрыта атрибутом hidden — так app.js может
+     переключать их местами после отметки урока, не перезагружая страницу. #}
+  <a class="continue-card {% if continue_entry %}track-{{ continue_entry.phase.track }}{% endif %}"
+     id="continue-link"
+     href="{{ url_for('lesson_detail', lesson_id=continue_entry.lesson.id) if continue_entry else url_for('index') }}"
+     {% if not continue_entry %}hidden{% endif %}>
+    <span class="continue-label">Продолжить:</span>
+    <span class="continue-title" id="continue-title">{{ continue_entry.lesson.title if continue_entry else '' }}</span>
+    <span class="continue-arrow">→</span>
+  </a>
+  <div class="continue-card continue-done" id="continue-done" {% if continue_entry %}hidden{% endif %}>
+    <span class="continue-label">Курс</span>
+    <span class="continue-title">Все уроки пройдены</span>
+    <span class="continue-arrow">✓</span>
+  </div>
+
   {% for phase in phases %}
-  <details class="phase track-{{ phase.track }}" id="{{ phase.code }}" open>
+  <details class="phase track-{{ phase.track }}" id="{{ phase.code }}" {% if phase.code == open_phase %}open{% endif %}>
     <summary>
       <span class="ph-title">
         <h3>{{ phase.title }}</h3>
@@ -22,6 +39,7 @@
               type="checkbox"
               id="{{ lesson.id }}"
               data-id="{{ lesson.id }}"
+              aria-label="Отметить урок «{{ lesson.title }}» пройденным"
               onchange="this.form.requestSubmit()"
               {{ 'checked' if lesson.done else '' }}
             >

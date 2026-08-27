@@ -4,6 +4,69 @@
 // базовой версии": перехватывает отправку формы и обновляет страницу
 // точечно, без мигания и потери прокрутки.
 
+// Пересобирает карточку "Продолжить" на главной. Порядок <li> в DOM совпадает
+// с порядком уроков в курсе (и то, и другое строится из PHASES), поэтому
+// первый неотмеченный урок в документе — это ровно то же, что вернул бы
+// find_continue_lesson() на сервере.
+function refreshContinueCard() {
+  const link = document.getElementById("continue-link");
+  const doneCard = document.getElementById("continue-done");
+  if (!link || !doneCard) return; // не главная страница — нечего обновлять
+
+  const nextLi = document.querySelector("ul.lessons li[data-lesson-li]:not(.done)");
+  if (!nextLi) {
+    link.hidden = true;
+    doneCard.hidden = false;
+    return;
+  }
+
+  const titleLink = nextLi.querySelector(".lesson-title-link");
+  if (!titleLink) return;
+
+  link.href = titleLink.getAttribute("href");
+  document.getElementById("continue-title").textContent = titleLink.textContent.trim();
+
+  // цвет карточки — по треку той фазы, в которой лежит следующий урок
+  const details = nextLi.closest("details.phase");
+  const track = details ? (details.className.match(/track-[a-z]+/) || [])[0] : null;
+  link.className = "continue-card" + (track ? " " + track : "");
+
+  link.hidden = false;
+  doneCard.hidden = true;
+}
+
+// Ссылки на фазы (шапка, хлебные крошки, кнопка "Список" на странице урока)
+// ведут на якорь вида /#p1. Тут две проблемы, и обе решаются здесь:
+// 1) по умолчанию сервер оставляет раскрытой только одну фазу — ту, где лежит
+//    следующий урок, — так что переход по такой ссылке упирался бы в свёрнутый
+//    блок;
+// 2) шапка липкая, и штатный прыжок по якорю прячет заголовок фазы под ней.
+//    Высоту шапки знает только браузер (она зависит от ширины экрана), поэтому
+//    отдаём её в CSS переменной, а scroll-margin-top в style.css её подхватывает.
+function syncHeaderOffset() {
+  const header = document.querySelector(".topbar");
+  if (!header) return;
+  const offset = Math.round(header.getBoundingClientRect().height) + 10;
+  document.documentElement.style.setProperty("--header-h", offset + "px");
+}
+
+function openPhaseFromHash() {
+  syncHeaderOffset();
+
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+
+  const details = document.getElementById(id);
+  if (!details || details.tagName !== "DETAILS") return;
+
+  details.open = true;
+  details.scrollIntoView(); // учитывает scroll-margin-top, т.е. высоту шапки
+}
+
+document.addEventListener("DOMContentLoaded", openPhaseFromHash);
+window.addEventListener("hashchange", openPhaseFromHash);
+window.addEventListener("resize", syncHeaderOffset);
+
 document.addEventListener("submit", function (event) {
   const form = event.target;
   if (!form.classList.contains("toggle-form")) return;
@@ -37,6 +100,14 @@ document.addEventListener("submit", function (event) {
         const badge = phaseDetails.querySelector(".ph-progress");
         if (badge) badge.textContent = doneInPhase + "/" + totalInPhase;
       }
+
+      // 4) подпись у переключателя на странице урока
+      const label = form.querySelector(".done-toggle span");
+      if (label) label.textContent = data.done ? "Пройдено" : "Отметить пройденным";
+
+      // 5) карточка "Продолжить" на главной не должна вести на только что
+      //    закрытый урок
+      refreshContinueCard();
     })
     .catch(() => {
       // Если сеть/сервер подвели — просто отправляем форму как обычно (без AJAX).

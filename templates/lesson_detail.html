@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{# Класс на <body> нужен, чтобы отступ снизу под прилипшую панель появлялся
+   только на странице урока, а не на главной. #}
+{% block body_class %}page-lesson{% endblock %}
+
 {% block content %}
   <div class="crumb">
     <a href="{{ url_for('index') }}">← Все фазы</a>
@@ -57,4 +61,33 @@
     </a>
     {% endif %}
   </nav>
+{% endblock %}
+
+{# Узкая панель внизу экрана: конспекты длинные, и чтобы перейти к следующему
+   уроку, не хочется прокручивать всё до конца. Полный блок навигации внизу
+   страницы при этом остаётся на месте. #}
+{% block bottombar %}
+<nav class="sticky-nav" aria-label="Переход между уроками">
+  <div class="sticky-nav-inner">
+    {% if prev_entry %}
+    <a class="sticky-btn prev" href="{{ url_for('lesson_detail', lesson_id=prev_entry.lesson.id) }}"
+       title="{{ prev_entry.lesson.title }}">
+      <span class="sticky-arrow">←</span><span class="sticky-text">{{ prev_entry.lesson.title }}</span>
+    </a>
+    {% else %}
+    <span class="sticky-btn disabled"><span class="sticky-arrow">←</span></span>
+    {% endif %}
+
+    <a class="sticky-btn up" href="{{ url_for('index') }}#{{ phase.code }}" title="К списку уроков">Список</a>
+
+    {% if next_entry %}
+    <a class="sticky-btn next" href="{{ url_for('lesson_detail', lesson_id=next_entry.lesson.id) }}"
+       title="{{ next_entry.lesson.title }}">
+      <span class="sticky-text">{{ next_entry.lesson.title }}</span><span class="sticky-arrow">→</span>
+    </a>
+    {% else %}
+    <span class="sticky-btn disabled"><span class="sticky-arrow">→</span></span>
+    {% endif %}
+  </div>
+</nav>
 {% endblock %}
