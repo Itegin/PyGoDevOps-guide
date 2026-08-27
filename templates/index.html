@@ -26,8 +26,8 @@
               {{ 'checked' if lesson.done else '' }}
             >
           </form>
-          <label for="{{ lesson.id }}">
-            <b>{{ lesson.title }}</b>
+          <div class="lesson-info">
+            <a class="lesson-title-link" href="{{ url_for('lesson_detail', lesson_id=lesson.id) }}"><b>{{ lesson.title }}</b></a>
             {% if lesson.text %}<span class="lesson-text">{{ lesson.text }}</span>{% endif %}
             {% if lesson.task %}<span class="task">🔧 {{ lesson.task }}</span>{% endif %}
             {% if lesson.links %}
@@ -37,7 +37,7 @@
               {% endfor %}
             </span>
             {% endif %}
-          </label>
+          </div>
         </li>
         {% endfor %}
       </ul>

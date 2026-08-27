@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="crumb">
+    <a href="{{ url_for('index') }}">← Все фазы</a>
+    <span class="crumb-sep">/</span>
+    <a href="{{ url_for('index') }}#{{ phase.code }}">{{ phase.title }}</a>
+  </div>
+
+  <article class="lesson-page track-{{ phase.track }}">
+    <header class="lesson-head">
+      <h2>{{ lesson.title }}</h2>
+      <form method="post" action="{{ url_for('toggle', lesson_id=lesson.id) }}" class="toggle-form lesson-done-form">
+        <label class="done-toggle">
+          <input
+            type="checkbox"
+            data-id="{{ lesson.id }}"
+            onchange="this.form.requestSubmit()"
+            {{ 'checked' if lesson.done else '' }}
+          >
+          <span>{{ 'Пройдено' if lesson.done else 'Отметить пройденным' }}</span>
+        </label>
+      </form>
+    </header>
+
+    {% if lesson.task %}<p class="lesson-task-line">🔧 {{ lesson.task }}</p>{% endif %}
+
+    {% if content_html %}
+      <div class="lesson-content">{{ content_html | safe }}</div>
+    {% else %}
+      <p class="lesson-text">{{ lesson.text }}</p>
+      <p class="no-content">Полного конспекта для этого урока пока нет — есть только короткое описание выше.</p>
+    {% endif %}
+
+    {% if lesson.links %}
+    <div class="lesson-links">
+      <div class="res-title">Материалы по теме</div>
+      <span class="links">
+        {% for link in lesson.links %}
+        <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.title }}</a>
+        {% endfor %}
+      </span>
+    </div>
+    {% endif %}
+  </article>
+
+  <nav class="lesson-nav">
+    {% if prev_entry %}
+    <a class="nav-btn prev" href="{{ url_for('lesson_detail', lesson_id=prev_entry.lesson.id) }}">
+      ← {{ prev_entry.lesson.title }}
+    </a>
+    {% else %}<span></span>{% endif %}
+
+    {% if next_entry %}
+    <a class="nav-btn next" href="{{ url_for('lesson_detail', lesson_id=next_entry.lesson.id) }}">
+      {{ next_entry.lesson.title }} →
+    </a>
+    {% endif %}
+  </nav>
+{% endblock %}

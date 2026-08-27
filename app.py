@@ -17,9 +17,11 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
+import markdown as md
 from flask import Flask, render_template, redirect, url_for, request, jsonify
 
 from data.lessons_data import PHASES, all_lesson_ids
+from data.lesson_content import CONTENT
 
 app = Flask(__name__)
 
@@ -92,6 +94,55 @@ def build_phases_with_progress():
         total_all += len(lessons)
 
     return phases, total_done, total_all
+
+
+# Плоский список уроков в порядке прохождения курса — считаем один раз при
+# старте (PHASES не меняется во время работы процесса), нужен для кнопок
+# "← предыдущий / следующий →" на странице урока, как в курсах на Stepik.
+def _build_flat_lessons():
+    flat = []
+    for phase in PHASES:
+        for lesson in phase["lessons"]:
+            flat.append({"phase": phase, "lesson": lesson})
+    return flat
+
+
+FLAT_LESSONS = _build_flat_lessons()
+
+
+def find_lesson(lesson_id):
+    """Возвращает (phase, lesson, prev_entry, next_entry) или (None, None, None, None)."""
+    for i, entry in enumerate(FLAT_LESSONS):
+        if entry["lesson"]["id"] == lesson_id:
+            prev_entry = FLAT_LESSONS[i - 1] if i > 0 else None
+            next_entry = FLAT_LESSONS[i + 1] if i < len(FLAT_LESSONS) - 1 else None
+            return entry["phase"], entry["lesson"], prev_entry, next_entry
+    return None, None, None, None
+
+
+@app.route("/lesson/<lesson_id>")
+def lesson_detail(lesson_id):
+    phase, lesson, prev_entry, next_entry = find_lesson(lesson_id)
+    if lesson is None:
+        return "Урок не найден", 404
+
+    done = get_progress_map().get(lesson_id, False)
+
+    # extensions: fenced_code — блоки ```python ... ```; tables — таблицы;
+    # sane_lists — списки ведут себя предсказуемо (частая боль ванильного markdown).
+    content_md = CONTENT.get(lesson_id, "")
+    content_html = md.markdown(
+        content_md, extensions=["fenced_code", "tables", "sane_lists"]
+    ) if content_md else ""
+
+    return render_template(
+        "lesson_detail.html",
+        phase=phase,
+        lesson={**lesson, "done": done},
+        content_html=content_html,
+        prev_entry=prev_entry,
+        next_entry=next_entry,
+    )
 
 
 @app.route("/")
