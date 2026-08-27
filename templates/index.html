@@ -45,7 +45,7 @@
             >
           </form>
           <div class="lesson-info">
-            <a class="lesson-title-link" href="{{ url_for('lesson_detail', lesson_id=lesson.id) }}"><b>{{ lesson.title }}</b></a>
+            <a class="lesson-title-link" href="{{ url_for('lesson_detail', lesson_id=lesson.id) }}"><b>{{ lesson.title }}</b></a>{% if lesson.id in noted_ids %}<span class="note-mark" title="Есть заметка">✎</span>{% endif %}
             {% if lesson.text %}<span class="lesson-text">{{ lesson.text }}</span>{% endif %}
             {% if lesson.task %}<span class="task">🔧 {{ lesson.task }}</span>{% endif %}
             {% if lesson.links %}

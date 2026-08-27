@@ -210,6 +210,46 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 .lesson-links{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .res-title{ font-family: monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
 
+/* ---- личные заметки к уроку ---- */
+/* Отделяем так же, как блок "Материалы по теме": линия сверху, тот же .res-title. */
+.lesson-notes{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.note-form{ margin: 0; }
+.note-area{
+  /* textarea не наследует ни шрифт, ни цвета — на чёрном фоне без этих
+     четырёх строк браузер нарисует светлый прямоугольник от себя. */
+  font-family: inherit; font-size: 14px; line-height: 1.5;
+  color: var(--white); background: var(--panel);
+  width: 100%; display: block;
+  min-height: 120px; resize: vertical;
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px;
+}
+.note-area::placeholder{ color: var(--muted); }
+/* Фокус показываем самой рамкой: общий outline из блока ниже вокруг textarea
+   рисовался бы вторым контуром поверх неё, со своим радиусом. Цвет — по треку. */
+.note-area:focus{ outline: none; border-color: var(--purple); }
+.track-go .note-area:focus{ border-color: var(--blue); }
+
+.note-bar{
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 8px; flex-wrap: wrap;
+}
+.note-status{ font-family: monospace; font-size: 11.5px; color: var(--muted); }
+.note-status.ok{ color: var(--purple); }
+.track-go .note-status.ok{ color: var(--blue); }
+.note-status.err{ color: var(--white); }
+
+.note-save-btn{
+  font-family: monospace; font-size: 12px; color: var(--muted);
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 12px; cursor: pointer; margin-left: auto;
+}
+.note-save-btn:hover{ color: var(--white); border-color: var(--purple); }
+.track-go .note-save-btn:hover{ border-color: var(--blue); }
+
+/* Пометка "есть заметка" рядом с названием урока на главной. */
+.note-mark{ font-size: 12px; color: var(--muted); margin-left: 6px; }
+
 .lesson-nav{
   display: flex; justify-content: space-between; gap: 12px;
   margin-top: 14px; flex-wrap: wrap;

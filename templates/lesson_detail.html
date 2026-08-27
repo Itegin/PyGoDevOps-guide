@@ -46,6 +46,27 @@
       </span>
     </div>
     {% endif %}
+
+    {# Личная заметка к уроку. Это обычная форма с action на /notes/<id>:
+       static/notes.js перехватывает отправку и сохраняет по ходу набора,
+       но без JS кнопка "Сохранить" отправит её как есть. #}
+    <section class="lesson-notes">
+      <div class="res-title">Мои заметки</div>
+      <form method="post" action="{{ url_for('save_note', lesson_id=lesson.id) }}" class="note-form">
+        <textarea
+          class="note-area"
+          name="content"
+          id="note-area"
+          rows="6"
+          placeholder="Свои мысли, вопросы, куски кода, ссылки — всё, что хочется вспомнить при повторении."
+          aria-label="Личная заметка к уроку"
+        >{{ note_content }}</textarea>
+        <div class="note-bar">
+          <span class="note-status" id="note-status" role="status" aria-live="polite"></span>
+          <button type="submit" class="note-save-btn">Сохранить</button>
+        </div>
+      </form>
+    </section>
   </article>
 
   <nav class="lesson-nav">
@@ -90,4 +111,8 @@
     {% endif %}
   </div>
 </nav>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='notes.js') }}"></script>
 {% endblock %}

@@ -40,9 +40,12 @@ def get_db():
 
 
 def init_db():
-    """Создаёт таблицу, если её ещё нет, и добавляет строки для новых уроков
+    """Создаёт таблицы, если их ещё нет, и добавляет строки для новых уроков
     (тех, что появились в lessons_data.py, но которых ещё нет в БД).
-    INSERT OR IGNORE — безопасно вызывать при каждом старте приложения."""
+    INSERT OR IGNORE — безопасно вызывать при каждом старте приложения.
+
+    CREATE TABLE IF NOT EXISTS отрабатывает и на уже развёрнутом progress.db:
+    таблица notes просто добавляется рядом, ничего не переписывая."""
     conn = get_db()
     conn.execute(
         """
@@ -53,12 +56,47 @@ def init_db():
         )
         """
     )
+    # Личные заметки к урокам. В отличие от progress эту таблицу НЕ засеиваем
+    # пустыми строками на все 56 уроков: отсутствие строки и есть "заметки нет",
+    # так что 56 пустых записей были бы чистым мусором.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notes (
+            lesson_id  TEXT PRIMARY KEY,
+            content    TEXT NOT NULL DEFAULT '',
+            updated_at TEXT
+        )
+        """
+    )
     conn.executemany(
         "INSERT OR IGNORE INTO progress (lesson_id, done) VALUES (?, 0)",
         [(lid,) for lid in all_lesson_ids()],
     )
     conn.commit()
     conn.close()
+
+
+def get_note(lesson_id):
+    """Текст заметки к уроку. Нет строки в таблице — значит, заметки нет,
+    возвращаем пустую строку (шаблону всё равно, а textarea будет пустой)."""
+    conn = get_db()
+    row = conn.execute("SELECT content FROM notes WHERE lesson_id = ?", (lesson_id,)).fetchone()
+    conn.close()
+    return row["content"] if row else ""
+
+
+def get_noted_ids():
+    """Множество id уроков, у которых есть непустая заметка — из него на
+    главной рисуется пометка "✎" рядом с названием урока.
+    Заметку из одних пробелов и переводов строк значком не помечаем; голый
+    TRIM() в SQLite срезает только пробелы, поэтому список символов задан явно."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT lesson_id FROM notes "
+        "WHERE TRIM(content, char(32) || char(9) || char(10) || char(13)) != ''"
+    ).fetchall()
+    conn.close()
+    return {row["lesson_id"] for row in rows}
 
 
 def get_progress_map():
@@ -163,6 +201,7 @@ def lesson_detail(lesson_id):
     return render_template(
         "lesson_detail.html",
         phases=phases,
+        note_content=get_note(lesson_id),
         total_done=total_done,
         total_all=total_all,
         percent=calc_percent(total_done, total_all),
@@ -186,6 +225,7 @@ def index():
         total_all=total_all,
         percent=calc_percent(total_done, total_all),
         continue_entry=continue_entry,
+        noted_ids=get_noted_ids(),
         # Раскрытой по умолчанию оставляем только ту фазу, в которой лежит
         # следующий незакрытый урок: остальные свёрнуты, чтобы список не
         # растягивался на несколько экранов.
@@ -225,6 +265,45 @@ def toggle(lesson_id):
         })
 
     return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/notes/<lesson_id>", methods=["POST"])
+def save_note(lesson_id):
+    """Сохраняет личную заметку к уроку (upsert: строка появляется в момент
+    первого сохранения). Как и /toggle, работает в двух режимах: JSON для
+    автосохранения из static/notes.js и обычная форма с редиректом —
+    чтобы заметки можно было писать и с выключенным JS."""
+    _, lesson, _, _ = find_lesson(lesson_id)
+    if lesson is None:
+        return jsonify({"error": "unknown lesson_id"}), 404
+
+    is_fetch = request.headers.get("X-Requested-With") == "fetch"
+
+    # silent=True — чтобы кривой/не-JSON body не превращался в 400 от Flask;
+    # form-вариант нужен для отправки обычной формой без JS.
+    data = request.get_json(silent=True) or {}
+    content = data.get("content") if "content" in data else request.form.get("content")
+    content = str(content or "")  # None недопустим: колонка NOT NULL
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO notes (lesson_id, content, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(lesson_id) DO UPDATE SET
+            content = excluded.content,
+            updated_at = excluded.updated_at
+        """,
+        (lesson_id, content, now),
+    )
+    conn.commit()
+    conn.close()
+
+    if is_fetch:
+        return jsonify({"saved": True, "updated_at": now})
+
+    return redirect(request.referrer or url_for("lesson_detail", lesson_id=lesson_id))
 
 
 @app.route("/reset", methods=["POST"])
