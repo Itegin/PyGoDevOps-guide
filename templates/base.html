@@ -18,10 +18,23 @@
     <div class="wrap">
       <div class="title-row">
         <a class="home-link" href="{{ url_for('index') }}"><h1>Python + Go → DevOps</h1></a>
-        <span id="pct" class="pct">{{ percent }}%</span>
+        {# Общая цифра осталась, но ушла в одну строку с заголовком: треки
+           разного размера, и единый процент — уже справочная величина,
+           а не главный показатель. #}
+        <span class="pct"><span id="pct">{{ percent }}%</span> · <span id="counts">{{ total_done }}/{{ total_all }}</span></span>
       </div>
-      <div class="bar-outer"><div class="bar-inner" id="bar" style="width: {{ percent }}%;"></div></div>
-      <div class="counts"><span id="counts">{{ total_done }}/{{ total_all }}</span> уроков выполнено</div>
+
+      {# Полоска на каждый трек. Список треков приходит из build_track_stats()
+         и собирается из PHASES, так что новый трек добавится сюда сам. #}
+      <div class="tracks">
+        {% for t in tracks %}
+        <div class="track-row track-{{ t.track }}" data-track="{{ t.track }}">
+          <span class="track-name">{{ t.title }}</span>
+          <div class="bar-outer"><div class="bar-inner" style="width: {{ t.percent }}%;"></div></div>
+          <span class="track-count">{{ t.done }}/{{ t.total }}</span>
+        </div>
+        {% endfor %}
+      </div>
 
       <nav class="phase-nav">
         {% for phase in phases %}

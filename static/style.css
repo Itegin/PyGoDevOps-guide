@@ -40,11 +40,30 @@ body{
 .pct{ font-family: monospace; color: var(--muted); }
 
 .bar-outer{
-  margin-top: 10px; height: 8px; border-radius: 5px;
+  height: 6px; border-radius: 4px; flex: 1;
   background: #1c1930; overflow: hidden;
 }
-.bar-inner{ height: 100%; background: linear-gradient(90deg, var(--purple), var(--blue)); }
-.counts{ font-size: 12px; color: var(--muted); margin-top: 6px; font-family: monospace; }
+.bar-inner{ height: 100%; background: var(--purple); }
+
+/* Прогресс по трекам: у каждого своя полоска своего цвета. Треков может быть
+   и три, и четыре — блок просто вытягивается вниз, разметка не завязана
+   на их количество. */
+.tracks{ margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.track-row{ display: flex; align-items: center; gap: 9px; }
+.track-name{
+  font-family: monospace; font-size: 11px; color: var(--muted);
+  flex: 0 0 54px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.track-count{
+  font-family: monospace; font-size: 11px; color: var(--muted);
+  flex: 0 0 auto; min-width: 42px; text-align: right;
+}
+.track-row.track-py .bar-inner{ background: var(--purple); }
+.track-row.track-go .bar-inner{ background: var(--blue); }
+.track-row.track-project .bar-inner{ background: var(--white); }
+/* devops — тот же приём, что и у рамок этого трека: не свой цвет, а переход
+   из фиолетового в синий (см. блок "трек devops" ниже). */
+.track-row.track-devops .bar-inner{ background: linear-gradient(90deg, var(--purple), var(--blue)); }
 
 .phase-nav{ margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .phase-nav a{
@@ -56,6 +75,51 @@ body{
 .phase-nav a.track-go{ border-left-color: var(--blue); }
 .phase-nav a.track-project{ border-left-color: var(--white); }
 .phase-nav a:hover{ color: var(--white); }
+
+/* ---- трек devops ----
+   Своего цвета у него нет и не должно быть: Ansible — это Python, экосистема
+   Kubernetes — это Go, поэтому трек красится переходом из фиолетового в синий.
+   Приём везде один: рамка (или её левая часть) делается прозрачной, а градиент
+   рисуется фоном под ней — так, в отличие от border-image, сохраняются
+   скруглённые углы. Там, где градиент технически невозможен (accent-color
+   у чекбоксов, outline у фокуса), трек просто наследует фиолетовый по
+   умолчанию — новых цветов в палитре не заводим. */
+.phase-nav a.track-devops{
+  border-left-color: transparent;
+  background: linear-gradient(180deg, var(--purple), var(--blue)) left / 3px 100% no-repeat;
+}
+
+details.phase.track-devops{
+  /* два слоя фона: чёрный до рамки и градиент в самой рамке */
+  border-color: transparent;
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(145deg, #3b3163, #2c3a63) border-box;
+}
+details.phase.track-devops > summary{
+  border-left-color: transparent;
+  background: linear-gradient(180deg, var(--purple), var(--blue)) left / 4px 100% no-repeat;
+}
+details.phase.track-devops > summary:hover h3{
+  /* один цвет для подсветки текста выбрать всё равно нужно — берём начало
+     градиента, фиолетовый, как у трека Python */
+  color: var(--purple);
+}
+
+.lesson-page.track-devops{
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    linear-gradient(150deg, #3b3163, #2c3a63) border-box;
+}
+
+.continue-card.track-devops{
+  border-left-color: transparent;
+  background: linear-gradient(180deg, var(--purple), var(--blue)) left / 4px 100% no-repeat;
+}
+/* общее правило ниже перекрашивает всю рамку при наведении — левую полоску
+   надо снова отдать градиенту, иначе она пропадёт */
+a.continue-card.track-devops:hover{ border-color: var(--purple); border-left-color: transparent; }
 
 /* ---- phases ---- */
 main.wrap{ padding-top: 20px; padding-bottom: 40px; }
@@ -207,6 +271,42 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 .lesson-content th{ color: var(--white); background: #0e0c18; }
 .lesson-content hr{ border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 
+/* ---- шаги урока: теория / практика / проверка ---- */
+/* Заголовок шага оформлен как .res-title ("Материалы по теме", "Мои заметки"),
+   только с иконкой — чтобы страница не распадалась на разные виды подписей. */
+.step-head{ display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+.step-icon{ font-size: 13px; line-height: 1; }
+.step-name{
+  font-family: monospace; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.lesson-step{ margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+.practice-list{ margin: 0 0 12px; padding-left: 22px; font-size: 14px; color: #d8d6e8; }
+/* pre-wrap: шаг практики может быть многострочным (например, содержимое
+   inventory.ini прямо в тексте шага) — переносы из данных нужно сохранить,
+   иначе такой шаг склеивается в одну строку. */
+.practice-list li{ margin-bottom: 5px; white-space: pre-wrap; }
+.step-form{ margin: 0; }
+
+.verify-list{ list-style: none; margin: 0; padding: 0; }
+.verify-list li{
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.verify-list li:last-child{ margin-bottom: 0; }
+.verify-list li:hover{ border-color: #4a4177; }
+.verify-list li.done{ border-color: #1f1b33; }
+.verify-item{ display: flex; gap: 11px; align-items: flex-start; cursor: pointer; font-size: 14px; }
+.verify-item input{
+  width: 19px; height: 19px; flex-shrink: 0; margin: 1px 0 0;
+  accent-color: var(--purple); cursor: pointer;
+}
+.track-go .verify-item input{ accent-color: var(--blue); }
+.verify-list li.done .verify-item span{
+  color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border);
+}
+
 .lesson-links{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .res-title{ font-family: monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
 
@@ -343,6 +443,13 @@ input[type=checkbox]:focus-visible{
   .phase-nav{ flex-wrap: nowrap; overflow-x: auto; gap: 0 14px; padding-bottom: 2px; scrollbar-width: none; }
   .phase-nav::-webkit-scrollbar{ display: none; }
   .phase-nav a{ white-space: nowrap; overflow-wrap: normal; }
+
+  /* Шапка липкая, а полосок теперь несколько — на телефоне ужимаем строки,
+     чтобы шапка не съедала пол-экрана. */
+  .tracks{ gap: 4px; }
+  .track-name{ flex-basis: 46px; font-size: 10px; }
+  .track-count{ font-size: 10px; min-width: 36px; }
+  .bar-outer{ height: 5px; }
 
   .lesson-page{ padding: 14px 14px 18px; }
   .ph-body{ padding: 4px 12px 12px 12px; }

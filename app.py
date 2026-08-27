@@ -45,7 +45,8 @@ def init_db():
     INSERT OR IGNORE — безопасно вызывать при каждом старте приложения.
 
     CREATE TABLE IF NOT EXISTS отрабатывает и на уже развёрнутом progress.db:
-    таблица notes просто добавляется рядом, ничего не переписывая."""
+    таблицы notes и lesson_steps просто добавляются рядом, ничего не переписывая.
+    Схема только растёт: старые таблицы не трогаем и колонки в них не меняем."""
     conn = get_db()
     conn.execute(
         """
@@ -65,6 +66,21 @@ def init_db():
             lesson_id  TEXT PRIMARY KEY,
             content    TEXT NOT NULL DEFAULT '',
             updated_at TEXT
+        )
+        """
+    )
+    # Шаги урока сверх основной галочки: "практика выполнена" и каждый пункт
+    # проверки по отдельности. Таблица узкая и разреженная: строки нет — шаг
+    # не отмечен, поэтому засеивать её (как progress) нечем и незачем.
+    # step — это "practice" либо "verify-<номер>" (см. _step_exists()).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lesson_steps (
+            lesson_id  TEXT NOT NULL,
+            step       TEXT NOT NULL,
+            done       INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT,
+            PRIMARY KEY (lesson_id, step)
         )
         """
     )
@@ -105,6 +121,93 @@ def get_progress_map():
     rows = conn.execute("SELECT lesson_id, done FROM progress").fetchall()
     conn.close()
     return {row["lesson_id"]: bool(row["done"]) for row in rows}
+
+
+# Человеческие названия треков для шапки. Ключи — те же значения поля "track"
+# в data/lessons_data.py. Незнакомый трек не ломает страницу: если названия
+# нет, покажем сам код трека (см. build_track_stats).
+TRACK_TITLES = {
+    "py": "Python",
+    "go": "Go",
+    "devops": "DevOps",
+    "project": "Проекты",
+}
+
+# Треки, которые НЕ получают свою полоску в шапке. Полоска показывает, сколько
+# пройдено по осваиваемому навыку, а фазы-проекты — это не навык, а работа
+# руками по уже пройденному материалу. В общий счётчик рядом с заголовком их
+# уроки при этом входят: он считается по всему курсу.
+# Это именно исключение, а не белый список: любой новый трек-навык появится
+# в шапке сам, ничего здесь дописывать не нужно.
+NON_SKILL_TRACKS = {"project"}
+
+
+def build_track_stats(progress):
+    """Прогресс отдельно по каждому треку-навыку — полоска на трек в шапке
+    вместо одной общей.
+
+    Список треков НЕ захардкожен: он собирается из PHASES в порядке первого
+    появления, поэтому новый трек в lessons_data.py появляется в шапке сам,
+    без правок здесь. Единственное исключение — треки из NON_SKILL_TRACKS
+    (сейчас это "project"): их уроки считаются в общем счётчике курса, но
+    отдельной полоски не получают."""
+    order, acc = [], {}
+    for phase in PHASES:
+        track = phase["track"]
+        if track in NON_SKILL_TRACKS:
+            continue
+        if track not in acc:
+            order.append(track)
+            acc[track] = {
+                "track": track,
+                "title": TRACK_TITLES.get(track, track),
+                "done": 0,
+                "total": 0,
+            }
+        for lesson in phase["lessons"]:
+            acc[track]["total"] += 1
+            if progress.get(lesson["id"], False):
+                acc[track]["done"] += 1
+    return [
+        {**acc[track], "percent": calc_percent(acc[track]["done"], acc[track]["total"])}
+        for track in order
+    ]
+
+
+def _step_exists(lesson, step):
+    """Есть ли у урока такой шаг. Источник правды — сам урок в lessons_data.py,
+    а не содержимое БД: иначе POST на /step/p1-1/verify-99 создал бы мусорную
+    строку, которую никто никогда не покажет.
+
+    Сверяемся ровно с тем набором ключей, который генерирует шаблон (и который
+    потом читает get_lesson_steps), — так в таблицу не попадёт ни "verify-007",
+    ни любая другая запись того же номера другими символами."""
+    if step == "practice":
+        return bool(lesson.get("practice"))
+    return step in {
+        "verify-{}".format(i) for i in range(len(lesson.get("verify") or []))
+    }
+
+
+def get_lesson_steps(lesson_id, lesson):
+    """Состояние шагов урока: {"practice": bool, "verify": [bool, ...]}.
+
+    Список строим по данным урока, а не по строкам из БД. Если у урока было
+    три пункта проверки, а осталось два — лишняя строка verify-2 в таблице
+    просто никогда не прочитается и ни на что не влияет."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT step, done FROM lesson_steps WHERE lesson_id = ?", (lesson_id,)
+    ).fetchall()
+    conn.close()
+    saved = {row["step"]: bool(row["done"]) for row in rows}
+    return {
+        "practice": saved.get("practice", False),
+        "verify": [
+            saved.get("verify-{}".format(i), False)
+            for i in range(len(lesson.get("verify") or []))
+        ],
+    }
 
 
 def build_phases_with_progress(progress=None):
@@ -201,11 +304,15 @@ def lesson_detail(lesson_id):
     return render_template(
         "lesson_detail.html",
         phases=phases,
+        tracks=build_track_stats(progress),
         note_content=get_note(lesson_id),
         total_done=total_done,
         total_all=total_all,
         percent=calc_percent(total_done, total_all),
         phase=phase,
+        # Практика и проверка — необязательные поля урока; у уроков, где их
+        # нет, steps просто пустой, и шаблон эти секции не рисует вовсе.
+        steps=get_lesson_steps(lesson_id, lesson),
         lesson={**lesson, "done": done},
         content_html=content_html,
         prev_entry=prev_entry,
@@ -221,6 +328,7 @@ def index():
     return render_template(
         "index.html",
         phases=phases,
+        tracks=build_track_stats(progress),
         total_done=total_done,
         total_all=total_all,
         percent=calc_percent(total_done, total_all),
@@ -254,17 +362,63 @@ def toggle(lesson_id):
     conn.close()
 
     if request.headers.get("X-Requested-With") == "fetch":
-        _, total_done, total_all = build_phases_with_progress()
-        percent = round((total_done / total_all) * 100) if total_all else 0
+        progress = get_progress_map()
+        _, total_done, total_all = build_phases_with_progress(progress)
         return jsonify({
             "lesson_id": lesson_id,
             "done": bool(new_done),
             "total_done": total_done,
             "total_all": total_all,
-            "percent": percent,
+            "percent": calc_percent(total_done, total_all),
+            # Полоски треков в шапке тоже должны сдвинуться без перезагрузки.
+            "tracks": build_track_stats(progress),
         })
 
     return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/step/<lesson_id>/<step>", methods=["POST"])
+def toggle_step(lesson_id, step):
+    """Переключает отдельный шаг урока: "practice" или "verify-<номер>".
+
+    Основную галочку урока (таблица progress) НЕ трогает — это независимый
+    сигнал прогресса. Общий процент, счётчики фаз и карточка "Продолжить"
+    по-прежнему считаются только по progress.done, то есть по теории.
+
+    Как и /toggle, отвечает JSON на fetch и редиректом на обычную форму."""
+    _, lesson, _, _ = find_lesson(lesson_id)
+    is_fetch = request.headers.get("X-Requested-With") == "fetch"
+    if lesson is None or not _step_exists(lesson, step):
+        # Сюда можно попасть с открытой в браузере старой версией страницы,
+        # если у урока с тех пор убрали пункт проверки. Без JS в ответ на
+        # форму должна прийти страница, а не JSON, — как в lesson_detail().
+        if is_fetch:
+            return jsonify({"error": "unknown step"}), 404
+        return "Шаг урока не найден", 404
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT done FROM lesson_steps WHERE lesson_id = ? AND step = ?",
+        (lesson_id, step),
+    ).fetchone()
+    new_done = 0 if (row and row["done"]) else 1
+    conn.execute(
+        """
+        INSERT INTO lesson_steps (lesson_id, step, done, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(lesson_id, step) DO UPDATE SET
+            done = excluded.done,
+            updated_at = excluded.updated_at
+        """,
+        (lesson_id, step, new_done, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+    if is_fetch:
+        return jsonify({"lesson_id": lesson_id, "step": step, "done": bool(new_done)})
+
+    return redirect(request.referrer or url_for("lesson_detail", lesson_id=lesson_id))
 
 
 @app.route("/notes/<lesson_id>", methods=["POST"])
@@ -308,10 +462,14 @@ def save_note(lesson_id):
 
 @app.route("/reset", methods=["POST"])
 def reset():
-    """Сбрасывает весь прогресс. Отдельная кнопка в шаблоне спрашивает
-    подтверждение через confirm() на стороне браузера перед отправкой."""
+    """Сбрасывает весь прогресс — и галочки уроков, и их шаги; заметки при
+    этом остаются. Отдельная кнопка в шаблоне спрашивает подтверждение
+    через confirm() на стороне браузера перед отправкой."""
     conn = get_db()
     conn.execute("UPDATE progress SET done = 0, updated_at = NULL")
+    # Шаги (практика/проверка) — часть того же прогресса, их тоже сбрасываем.
+    # Тут именно DELETE, а не UPDATE: пустая таблица и есть "ничего не отмечено".
+    conn.execute("DELETE FROM lesson_steps")
     conn.commit()
     conn.close()
     return redirect(url_for("index"))

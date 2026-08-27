@@ -29,11 +29,62 @@
 
     {% if lesson.task %}<p class="lesson-task-line">🔧 {{ lesson.task }}</p>{% endif %}
 
+    {# Урок из трёх шагов: теория -> практика -> проверка. Поля practice и
+       verify необязательные: если их нет (а у уроков старого курса их нет),
+       заголовок "Теория" не рисуется вообще и страница выглядит ровно так же,
+       как до появления шагов — без пустых рамок и лишних подписей. #}
+    {% set has_steps = lesson.practice or lesson.verify %}
+
+    {% if has_steps %}
+    <div class="step-head"><span class="step-icon">📖</span><span class="step-name">Теория</span></div>
+    {% endif %}
+
     {% if content_html %}
       <div class="lesson-content">{{ content_html | safe }}</div>
     {% else %}
       <p class="lesson-text">{{ lesson.text }}</p>
       <p class="no-content">Полного конспекта для этого урока пока нет — есть только короткое описание выше.</p>
+    {% endif %}
+
+    {% if lesson.practice %}
+    {# Шаги практики — просто нумерованный список: отмечать каждый пункт
+       отдельно смысла нет, они делаются подряд и за один присест. #}
+    <section class="lesson-step">
+      <div class="step-head"><span class="step-icon">🔧</span><span class="step-name">Практика</span></div>
+      <ol class="practice-list">
+        {% for item in lesson.practice %}<li>{{ item }}</li>{% endfor %}
+      </ol>
+      <form method="post" action="{{ url_for('toggle_step', lesson_id=lesson.id, step='practice') }}"
+            class="toggle-form step-form">
+        <label class="done-toggle">
+          <input type="checkbox" onchange="this.form.requestSubmit()" {{ 'checked' if steps.practice else '' }}>
+          <span>{{ 'Практика выполнена' if steps.practice else 'Отметить практику' }}</span>
+        </label>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if lesson.verify %}
+    {# А вот критерии проверки — каждый со своей галочкой: это чек-лист
+       "готово, когда...", и половина выполненных пунктов тут осмысленна. #}
+    <section class="lesson-step">
+      <div class="step-head"><span class="step-icon">✅</span><span class="step-name">Проверка</span></div>
+      <ul class="verify-list">
+        {% for item in lesson.verify %}
+        <li class="{{ 'done' if steps.verify[loop.index0] else '' }}" data-step-li="verify-{{ loop.index0 }}">
+          <form method="post"
+                action="{{ url_for('toggle_step', lesson_id=lesson.id, step='verify-' ~ loop.index0) }}"
+                class="toggle-form step-form">
+            <label class="verify-item">
+              <input type="checkbox" onchange="this.form.requestSubmit()"
+                     {{ 'checked' if steps.verify[loop.index0] else '' }}>
+              <span>{{ item }}</span>
+            </label>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
     {% endif %}
 
     {% if lesson.links %}

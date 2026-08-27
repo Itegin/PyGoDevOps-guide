@@ -67,11 +67,39 @@ document.addEventListener("DOMContentLoaded", openPhaseFromHash);
 window.addEventListener("hashchange", openPhaseFromHash);
 window.addEventListener("resize", syncHeaderOffset);
 
+// Шаг урока (практика / пункт проверки). Отдельный обработчик, потому что
+// ответ у /step другой: на общий прогресс курса эти галочки не влияют,
+// обновлять шапку и счётчики фаз тут нечего.
+function submitStepForm(form) {
+  fetch(form.action, {
+    method: "POST",
+    headers: { "X-Requested-With": "fetch" },
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.error) return;
+
+      const label = form.querySelector(".done-toggle span");
+      if (label) label.textContent = data.done ? "Практика выполнена" : "Отметить практику";
+
+      const li = form.closest("li[data-step-li]");
+      if (li) li.classList.toggle("done", data.done);
+    })
+    .catch(() => {
+      form.submit(); // сеть подвела — отправляем форму обычным способом
+    });
+}
+
 document.addEventListener("submit", function (event) {
   const form = event.target;
   if (!form.classList.contains("toggle-form")) return;
 
   event.preventDefault(); // не даём браузеру перезагрузить страницу
+
+  if (form.classList.contains("step-form")) {
+    submitStepForm(form);
+    return;
+  }
 
   fetch(form.action, {
     method: "POST",
@@ -87,10 +115,15 @@ document.addEventListener("submit", function (event) {
       const li = document.querySelector('[data-lesson-li="' + data.lesson_id + '"]');
       if (li) li.classList.toggle("done", data.done);
 
-      // 2) обновляем общий прогресс-бар и счётчик в шапке
-      document.getElementById("bar").style.width = data.percent + "%";
+      // 2) обновляем шапку: общую цифру и полоску каждого трека
       document.getElementById("pct").textContent = data.percent + "%";
       document.getElementById("counts").textContent = data.total_done + "/" + data.total_all;
+      (data.tracks || []).forEach(function (t) {
+        const row = document.querySelector('.track-row[data-track="' + t.track + '"]');
+        if (!row) return;
+        row.querySelector(".bar-inner").style.width = t.percent + "%";
+        row.querySelector(".track-count").textContent = t.done + "/" + t.total;
+      });
 
       // 3) обновляем счётчик конкретной фазы (X/Y рядом с её заголовком)
       const phaseDetails = li ? li.closest("details.phase") : null;

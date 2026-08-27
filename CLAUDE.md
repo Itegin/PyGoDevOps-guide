@@ -8,15 +8,23 @@ Guidance for Claude Code sessions working in this repository.
 both names are in use, see §7) is a personal, self-hosted Flask site that tracks
 one person's progress through a "Python + Go → DevOps" learning plan.
 
-- The plan is 9 phases / 56 lessons (`data/lessons_data.py`), covering Python
+- The plan is 12 phases / 77 lessons (`data/lessons_data.py`), covering Python
   basics → Python for automation → Project 1 (Homelab Monitoring & Alerting API)
   → Go basics → Go concurrency/CLI → Project 2 (Metrics Exporter + Health-check
-  CLI) → CI/CD and portfolio packaging.
+  CLI) → CI/CD and portfolio packaging → and, as a continuation, the DevOps
+  tooling track: Ansible (`a1`) → CI/CD + Terraform (`a2`) → Kubernetes/k3s
+  (`a3`), 7 lessons each.
 - The index page (`/`) lists phases as collapsible blocks with a checkbox per
   lesson, per-phase counters and an overall progress bar.
 - Each lesson also has its own page (`/lesson/<lesson_id>`) with a long-form
-  Markdown write-up, a "mark as done" toggle, related links, and prev/next
-  navigation through the whole course (Stepik-style).
+  Markdown write-up, a "mark as done" toggle, related links, personal notes and
+  prev/next navigation through the whole course (Stepik-style).
+- A lesson is modelled as up to three steps — **Theory → Practice → Verify**
+  (§4a). Theory is the Markdown write-up and is always there; Practice and
+  Verify come from optional fields on the lesson dict, so their sections simply
+  don't render when those fields are absent — which is the case for all 56
+  lessons of the original course. All 21 lessons of the devops track do have
+  both fields (one `verify` criterion each, as the source roadmap was written).
 
 **Audience: a single user, personal use.** There is no login, no accounts, no
 per-user data — one shared progress table. Do not add multi-tenancy, user
@@ -56,15 +64,16 @@ docker-compose.yml        service "roadmap" (container "roadmap-site"), 8080:500
 README.md                 Russian setup/deploy guide (see §7 about drift)
 data/
   __init__.py             empty — makes data/ an importable package
-  lessons_data.py         ~410 lines: PHASES list + all_lesson_ids()
-  lesson_content.py       ~5600 lines: CONTENT dict of long-form Markdown
+  lessons_data.py         ~740 lines: PHASES list + all_lesson_ids()
+  lesson_content.py       ~7350 lines: CONTENT dict of long-form Markdown
 templates/
-  base.html               shell: sticky header, progress bar, phase nav, reset form
-  index.html              phase <details> blocks + lesson checkboxes
-  lesson_detail.html      single lesson page: content, done toggle, prev/next
+  base.html               shell: sticky header, per-track progress bars, phase nav, reset form
+  index.html              phase <details> blocks + lesson checkboxes + "continue" card
+  lesson_detail.html      single lesson page: theory/practice/verify, notes, prev/next
 static/
   style.css               the entire visual design (see §5)
   app.js                  progressive enhancement for checkbox toggling
+  notes.js                debounced autosave for the per-lesson note
 ```
 
 ### Routes in `app.py`
@@ -73,7 +82,8 @@ static/
 |---|---|---|
 | `/` | GET | Index: phases + lessons + progress counters/percent |
 | `/lesson/<lesson_id>` | GET | Lesson page; plain-text 404 if the id is unknown |
-| `/toggle/<lesson_id>` | POST | Flip done/not-done; JSON or redirect (see below) |
+| `/toggle/<lesson_id>` | POST | Flip the lesson's own done/not-done (= "theory done"); JSON or redirect (see below) |
+| `/step/<lesson_id>/<step>` | POST | Flip one extra step: `practice` or `verify-<n>`; JSON or redirect |
 | `/reset` | POST | Set every lesson back to not-done, then redirect to `/` |
 | `/healthz` | GET | `{"status": "ok"}` — used by the Docker HEALTHCHECK |
 
@@ -87,15 +97,21 @@ in SQLite.
 
 - **`data/lessons_data.py` — the lightweight index/metadata.** `PHASES` is a list
   of dicts: `code` (anchor id, e.g. `"p1"`), `track` (`"py"` / `"go"` /
-  `"project"` — this drives the accent colour, see §5), `title`, `meta` (e.g.
-  `"Недели 1–3 · ~18 ч"`), `why`, and `lessons`. Each lesson dict has a unique
-  `id` (e.g. `"p1-4"`), `title`, a short `text`, an optional `task`, and optional
-  `links` (`[{"title": ..., "url": ...}]`). `all_lesson_ids()` returns the flat
-  list of ids used to seed the DB.
+  `"devops"` / `"project"` — this drives the accent colour, see §5), `title`,
+  `meta` (e.g. `"Недели 1–3 · ~18 ч"`), `why`, and `lessons`. Each lesson dict
+  has a unique `id` (e.g. `"p1-4"`), `title`, a short `text`, an optional `task`,
+  and optional `links` (`[{"title": ..., "url": ...}]`). `all_lesson_ids()`
+  returns the flat list of ids used to seed the DB.
+  Two more optional lesson fields drive the Practice/Verify sections (§4a):
+  `practice` — `list[str]`, ordered hands-on steps; `verify` — `list[str]`,
+  "done when…" criteria. Present on the 21 devops lessons (`a1-*`/`a2-*`/`a3-*`),
+  absent on all 56 lessons of the original course. A `practice` step may contain
+  newlines (a1-1 embeds an `inventory.ini` snippet), so `.practice-list li` is
+  `white-space: pre-wrap`.
 - **`data/lesson_content.py` — the long-form lesson text.** A single `CONTENT`
   dict keyed by the same lesson `id`; values are raw Markdown strings
   (`r'''...'''`). Rendered with the `fenced_code`, `tables` and `sane_lists`
-  extensions. All 56 lessons currently have content. A missing key is not an
+  extensions. All 77 lessons currently have content. A missing key is not an
   error: the lesson page falls back to the short `text` from `lessons_data.py`.
 
 **When adding a lesson:** add the dict to the right phase in `lessons_data.py`
@@ -107,9 +123,20 @@ restart. `init_db()` inserts a row for the new id on startup
 ## 4. Data architecture
 
 - **Content** (phases, lessons, Markdown) lives in the Python files above, in git.
-- **Progress** (done/not-done per lesson) lives in SQLite: one table `progress`
-  (`lesson_id TEXT PRIMARY KEY`, `done INTEGER NOT NULL DEFAULT 0`,
-  `updated_at TEXT`).
+- **State** lives in SQLite — three tables, all created by `init_db()` with
+  `CREATE TABLE IF NOT EXISTS`:
+  - `progress` (`lesson_id TEXT PRIMARY KEY`, `done INTEGER NOT NULL DEFAULT 0`,
+    `updated_at TEXT`) — the lesson's own checkbox. Seeded with one row per
+    lesson id via `INSERT OR IGNORE`.
+  - `notes` (`lesson_id TEXT PRIMARY KEY`, `content TEXT NOT NULL DEFAULT ''`,
+    `updated_at TEXT`) — personal notes. Not seeded: no row = no note.
+  - `lesson_steps` (`lesson_id TEXT`, `step TEXT`, `done INTEGER`,
+    `updated_at TEXT`, PK `(lesson_id, step)`) — the extra steps, `step` being
+    `"practice"` or `"verify-<n>"`. Not seeded either: no row = not done.
+- **The schema only ever grows.** Never drop or rewrite an existing table or
+  column; add a new table (or a new `step` key) next to what's there, so a
+  `progress.db` that has been running on the server since the first version
+  keeps opening. Anything new must be safe to create on every startup.
 - **`progress.db` is NOT in the repo** — it is in both `.gitignore` and
   `.dockerignore`. Never commit it.
 - **Persistence in Docker is a named volume**, not a bind mount:
@@ -128,6 +155,40 @@ restart. `init_db()` inserts a row for the new id on startup
   (gunicorn threads) and `row_factory = sqlite3.Row`. `init_db()` is called at
   import time, so it runs under both `python app.py` and gunicorn.
 
+### 4a. The three-step lesson model — Theory / Practice / Verify
+
+A lesson can show up to three sections on its page, each rendered only if the
+lesson has data for it:
+
+| Step | Icon | Source | Checkbox |
+|---|---|---|---|
+| Theory | 📖 | `CONTENT[lesson_id]` in `lesson_content.py` | the lesson's own toggle (`/toggle`, table `progress`) |
+| Practice | 🔧 | optional `practice: list[str]` on the lesson dict | one toggle for the whole list (`step = "practice"`) |
+| Verify | ✅ | optional `verify: list[str]` on the lesson dict | one per criterion (`step = "verify-<n>"`) |
+
+**"Done" still means "theory done".** The top-level checkbox — on the index, on
+the lesson page, in the phase counters, in the overall/per-track percent and in
+the "continue learning" card — keeps exactly the meaning it always had: the row
+in `progress`. Practice and Verify are *additional, independent* signals; they
+are shown on the lesson page and stored in `lesson_steps`, and they deliberately
+do **not** feed any counter. This was a conscious choice: redefining "done" as
+"all three steps done" would have silently changed every existing number and
+would leave a lesson with no practice section permanently un-completable.
+
+Rules that keep this honest:
+
+- **The read path is driven by the code, not by the DB.** `get_lesson_steps()`
+  builds the verify list from `lesson["verify"]` and looks each index up, so if
+  a `verify` list later shrinks from 3 items to 2, the stale `verify-2` row is
+  simply never read. No migration, no cleanup.
+- **The write path validates against `lessons_data.py`.** `_step_exists()` is
+  the gate in `/step`: a POST for a step the lesson doesn't have returns 404
+  instead of inserting a junk row.
+- **A lesson with neither field renders exactly as before** — the "📖 Теория"
+  heading itself only appears when the lesson has `practice` or `verify`. That
+  is what keeps the 56 existing lessons free of empty boxes and stray labels.
+- `/reset` clears `progress` **and** `lesson_steps` (notes survive).
+
 ### Progressive enhancement — preserve it
 
 Every checkbox is a real `<form method="post">` posting to `/toggle/<id>`, so the
@@ -135,7 +196,10 @@ site works with JavaScript disabled. `static/app.js` intercepts the submit,
 re-posts with the header `X-Requested-With: fetch`, and `/toggle` branches on
 that header: JSON for fetch, `redirect(request.referrer)` otherwise. If the fetch
 fails, the JS falls back to `form.submit()`. Do not replace this with a JS-only
-flow.
+flow. The Practice/Verify checkboxes work the same way — real forms posting to
+`/step/<id>/<step>`, marked `class="toggle-form step-form"`; `app.js` handles
+them in a separate branch because their JSON response carries only that step's
+state (they don't move the course counters).
 
 ## 5. Design constraints — do not change without being explicitly asked
 
@@ -154,10 +218,36 @@ extra effects.
   - `track-py` → **purple** `--purple: #a78bfa` — Python track
   - `track-go` → **blue** `--blue: #5b9dff` — Go track
   - `track-project` → **white** `--white: #f3f2fa` — project phases
+  - `track-devops` → **a purple→blue gradient**, not a colour of its own —
+    phases `a1` / `a2` / `a3` (Ansible, CI/CD + Terraform, Kubernetes)
 
   It drives the phase-nav border, the phase left border, checkbox
   `accent-color`, link and heading colours, and hover states. Don't collapse it
   to a single accent colour and don't reassign the colours.
+- **The devops track has no hue of its own, on purpose.** Ansible is Python,
+  the Kubernetes ecosystem is Go — so the track is painted as a transition from
+  `--purple` to `--blue` instead of a fourth colour. **Do not add a devops
+  colour variable.** The technique is the same everywhere: make the border (or
+  just its left edge) `transparent` and paint the gradient as a *background*
+  underneath it — `linear-gradient(...) left / 4px 100% no-repeat` for the left
+  strips, and the two-layer `padding-box` / `border-box` trick for full borders.
+  `border-image` is deliberately not used: it kills `border-radius`.
+  Where a gradient is technically impossible — `accent-color` on checkboxes,
+  `outline-color` on focus — the devops track just inherits the default purple.
+  That is the intended fallback, not an oversight.
+- **Header progress is per skill track, not one bar.** `build_track_stats()`
+  walks `PHASES` and emits one row per track *in order of first appearance*, so
+  the markup is not tied to how many tracks exist — a new track shows up in the
+  header on its own. The one exception is `NON_SKILL_TRACKS` (currently just
+  `"project"`): a row shows progress through a skill being learned, and the
+  project phases are hands-on work over material already covered, so they get
+  no row. Their lessons still count in the combined number. Today that is three
+  rows — Python 24, Go 13, DevOps 21 — over a combined 77. Keep this an
+  *exclusion*, never an allowlist, so the next skill track needs no code change.
+  The combined percent and `done/total` survive as a small monospace readout
+  next to the title: with tracks of very different sizes it is a rough reference
+  number, not the headline any more. Track labels are short on purpose
+  (`Python` / `Go` / `DevOps`) — the name column is 54px (46px on mobile).
 - **Typography:** monospace for headers/meta/code — the percent readout,
   counters, `.ph-meta`, `.task`, `.res-title`, `.done-toggle`, `.reset-btn`,
   code blocks; the system sans stack (`-apple-system, "Segoe UI", Roboto, …`)
@@ -230,15 +320,9 @@ this repo — they live on the server.
 Alternative without git: `scp -r roadmap-site your-user@server-ip:~/roadmap-site`,
 then the same `docker compose up -d --build`.
 
-**⚠ Because the deploy is git-based, anything uncommitted does not ship.** At the
-time this file was written, `origin/main` did **not** contain the lesson-detail
-feature at all: `data/lesson_content.py` and `templates/lesson_detail.html` are
-untracked, and `app.py`, `requirements.txt` (the `Markdown` dependency),
-`static/style.css` and `templates/index.html` have uncommitted changes.
-Deploying `origin/main` as-is would ship a site with no lesson pages and a
-missing dependency. Commit and push that work before (or as part of) a deploy.
-Verify with `git status` and `git ls-tree -r --name-only origin/main` rather than
-trusting this note.
+**⚠ Because the deploy is git-based, anything uncommitted does not ship.**
+Commit and push before deploying, and verify with `git status` and
+`git ls-tree -r --name-only origin/main` rather than trusting notes in this file.
 
 ## 7. Notes / known drift
 
@@ -248,4 +332,10 @@ trusting this note.
 - The README calls the project `roadmap-site` (and uses that as the clone
   directory); the GitHub repo is `PyGoDevOps-guide`. Same project. The compose
   *service* name is `roadmap`, the container name is `roadmap-site`.
-- The history is two commits, both titled "Initial commit: roadmap tracker".
+- The history starts with two commits both titled "Initial commit: roadmap
+  tracker"; later commits have normal messages.
+- An earlier version of this file warned that the lesson-detail feature was
+  missing from `origin/main`. That is no longer true — it was pushed in
+  `13c3794` / `b68bffb` / `3a81fc0`. Since the deploy is `git pull` on the
+  server, the rule still stands: uncommitted work does not ship. Check with
+  `git status` and `git ls-tree -r --name-only origin/main`, not with notes here.
