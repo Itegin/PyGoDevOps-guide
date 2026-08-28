@@ -197,8 +197,11 @@ body{
 .pct{ font-family: monospace; font-size: var(--fs-sm); color: var(--text-2); }
 
 /* Переключатель тёмная/светлая. Показываем ту иконку, которую пользователь
-   получит после клика, — так кнопка читается как действие, а не как статус. */
-.theme-toggle{
+   получит после клика, — так кнопка читается как действие, а не как статус.
+   Кнопка сворачивания списка фаз стоит рядом и выглядит так же — это одна
+   группа управляющих кнопок в шапке. */
+.theme-toggle,
+.nav-toggle{
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; padding: 0;
   background: var(--surface-sunken); color: var(--text-2);
@@ -206,11 +209,20 @@ body{
   font-size: 13px; line-height: 1; cursor: pointer;
   transition: color var(--t-fast), border-color var(--t-fast), background-color var(--t-fast);
 }
-.theme-toggle:hover{ color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
+.theme-toggle:hover,
+.nav-toggle:hover{ color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
 .theme-icon{ display: none; }
 .theme-icon-sun{ display: block; }                          /* тёмная тема -> предлагаем светлую */
 :root[data-theme="light"] .theme-icon-sun{ display: none; }
 :root[data-theme="light"] .theme-icon-moon{ display: block; }
+
+/* Шеврон смотрит туда, куда поедет список: вниз — "развернуть", вверх —
+   "свернуть". Режимы "всегда показан" / "всегда скрыт" отличаем от "авто"
+   цветом акцента: иначе три состояния одной кнопки не различить. */
+.nav-toggle-icon{ display: block; transition: transform var(--t); }
+:root:not([data-nav-collapsed]) .nav-toggle-icon{ transform: rotate(180deg); }
+:root[data-nav-mode="shown"] .nav-toggle,
+:root[data-nav-mode="hidden"] .nav-toggle{ color: var(--accent); border-color: var(--border-strong); }
 
 /* ---- прогресс по трекам ----
    У каждого трека своя полоска своего цвета. Треков может быть и три,
@@ -242,7 +254,33 @@ body{
 /* ---- ссылки на фазы ----
    Цвет трека здесь — точка перед названием, а не обводка всей ссылки:
    в шапке их тринадцать, и тринадцать цветных рамок были бы шумом. */
-.phase-nav{ margin-top: var(--sp-3); display: flex; flex-wrap: wrap; gap: 6px; }
+/* Высоту в пикселях мы не знаем (строк может быть одна, а может три), зато
+   grid умеет анимировать долю: 1fr -> 0fr. Обрезает содержимое вложенный
+   .phase-nav-clip — у него больше нет других обязанностей, и мобильный
+   overflow-x на .phase-nav остаётся нетронутым.
+   visibility гасим с задержкой в длину перехода, иначе ссылки внутри
+   свёрнутого ряда остаются в порядке табуляции, и браузер честно пытается
+   прокрутить к ним нулевую по высоте коробку. */
+.phase-nav-wrap{
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: var(--sp-3);
+  transition: grid-template-rows var(--t), margin-top var(--t), opacity var(--t-fast);
+}
+.phase-nav-clip{ min-height: 0; overflow: hidden; }
+:root[data-nav-collapsed] .phase-nav-wrap{
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: grid-template-rows var(--t), margin-top var(--t),
+              opacity var(--t-fast), visibility 0s linear var(--t);
+}
+/* Разворот "без анимации": нужен, когда сразу после него меряют высоту шапки
+   для перехода по якорю (см. openPhaseFromHash в app.js). */
+:root[data-nav-instant] .phase-nav-wrap{ transition: none; }
+
+.phase-nav{ display: flex; flex-wrap: wrap; gap: 6px; }
 .phase-nav a{
   display: inline-flex; align-items: center; gap: 7px;
   font-size: var(--fs-sm); text-decoration: none; color: var(--text-2);
@@ -654,6 +692,12 @@ details.phase > summary:focus-visible{ outline-offset: -3px; }
   .phase-nav{ flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
   .phase-nav::-webkit-scrollbar{ display: none; }
   .phase-nav a{ white-space: nowrap; overflow-wrap: normal; flex-shrink: 0; }
+
+  /* Заголовок, отсчёт и две кнопки в одну строку на 380px уже не помещаются,
+     и заголовок переносится, добавляя шапке высоты. Общая дробь done/all —
+     самое необязательное здесь: свои done/all есть у каждого трека строкой
+     ниже, а процент остаётся. */
+  .pct-counts{ display: none; }
 
   /* Шапка липкая, а полосок несколько — на телефоне ужимаем строки,
      чтобы шапка не съедала пол-экрана. */

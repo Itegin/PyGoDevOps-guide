@@ -50,7 +50,179 @@ function syncHeaderOffset() {
   document.documentElement.style.setProperty("--header-h", offset + "px");
 }
 
+// ---- сворачивающийся список фаз -------------------------------------------
+// Ссылок на фазы тринадцать, и в липкой шапке они занимают до трёх строк.
+// Поэтому ряд прячется сам: вниз по странице — свернулся, вверх — вернулся.
+// Ручной режим это поведение перебивает целиком.
+//
+// Режим хранится в data-nav-mode на <html> и в localStorage["phase-nav"]:
+//   auto   — по прокрутке (значение по умолчанию, в хранилище его нет);
+//   shown  — всегда показан;
+//   hidden — всегда скрыт.
+// Свёрнут ли ряд прямо сейчас — это отдельный атрибут data-nav-collapsed.
+// Оба выставляет ещё скрипт в <head>: ряд меняет высоту шапки, и делай мы это
+// отсюда, при каждой загрузке страница дёргалась бы вверх (та же причина,
+// по которой там же выставляется тема).
+
+var NAV_MODES = ["auto", "shown", "hidden"];
+var NAV_TITLES = {
+  auto: "Список фаз: прячется при прокрутке вниз",
+  shown: "Список фаз: всегда показан",
+  hidden: "Список фаз: всегда скрыт",
+};
+
+// Порог в пикселях: мелкое дрожание прокрутки (тачпад, инерция телефона)
+// не должно дёргать шапку туда-сюда.
+var NAV_STEP = 10;
+
+var navLastScrollY = 0;
+var navTicking = false;
+var navSuppressUntil = 0;   // пока идёт прыжок по якорю — прокрутку не слушаем
+
+function getNavMode() {
+  var mode = document.documentElement.getAttribute("data-nav-mode");
+  return NAV_MODES.indexOf(mode) === -1 ? "auto" : mode;
+}
+
+function syncNavToggleUi() {
+  var button = document.getElementById("nav-toggle");
+  if (!button) return;
+
+  var title = NAV_TITLES[getNavMode()];
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.setAttribute(
+    "aria-expanded",
+    document.documentElement.hasAttribute("data-nav-collapsed") ? "false" : "true"
+  );
+}
+
+function setNavCollapsed(collapsed) {
+  var root = document.documentElement;
+  if (collapsed === root.hasAttribute("data-nav-collapsed")) return;
+
+  if (collapsed) root.setAttribute("data-nav-collapsed", "");
+  else root.removeAttribute("data-nav-collapsed");
+
+  syncNavToggleUi();
+
+  // Шапка стоит в обычном потоке, поэтому свернувшийся ряд укорачивает всю
+  // страницу — а браузер на это может подвинуть прокрутку. Обработчик принял
+  // бы такой сдвиг за движение пальца вверх и тут же развернул ряд обратно,
+  // так что на время перехода перестаём слушать прокрутку.
+  navSuppressUntil = Date.now() + 250;
+
+  // Высота шапки поехала, а на ней держится scroll-margin-top у фаз. Точное
+  // значение известно только после перехода — там его и меряем (см.
+  // setupPhaseNav), здесь же обновляем на случай отключённых анимаций.
+  syncHeaderOffset();
+}
+
+// Развернуть немедленно, без анимации: сразу после этого меряют высоту шапки,
+// а в середине перехода она ещё старая. Отключение перехода нужно и тогда,
+// когда ряд уже развёрнут: если анимация ещё идёт, transition: none обрывает
+// её и высота сразу становится конечной — иначе замер попадёт в середину.
+function expandNavInstantly() {
+  var root = document.documentElement;
+
+  root.setAttribute("data-nav-instant", "");
+  root.removeAttribute("data-nav-collapsed");
+  void document.body.offsetHeight; // заставляем браузер применить новую высоту
+  root.removeAttribute("data-nav-instant");
+
+  syncNavToggleUi();
+}
+
+function applyNavMode(mode, remember) {
+  document.documentElement.setAttribute("data-nav-mode", mode);
+
+  if (remember) {
+    try {
+      localStorage.setItem("phase-nav", mode);
+    } catch (e) {
+      // приватный режим: режим переключится, но не переживёт перезагрузку
+    }
+  }
+
+  // При возврате в "авто" показываем ряд — дальше им управляет прокрутка.
+  setNavCollapsed(mode === "hidden");
+  navLastScrollY = window.pageYOffset;
+
+  syncNavToggleUi();
+}
+
+function onNavScroll() {
+  var y = window.pageYOffset;
+
+  if (Date.now() < navSuppressUntil || getNavMode() !== "auto") {
+    navLastScrollY = y;
+    return;
+  }
+
+  // У самого верха страницы ряд всегда виден: прятать его там не от чего.
+  if (y <= NAV_STEP) {
+    setNavCollapsed(false);
+    navLastScrollY = y;
+    return;
+  }
+
+  var delta = y - navLastScrollY;
+  // Точку отсчёта не двигаем, пока не набралось порога: так несколько мелких
+  // шагов в одну сторону всё-таки сработают, а дрожание на месте — нет.
+  if (Math.abs(delta) < NAV_STEP) return;
+
+  setNavCollapsed(delta > 0);
+  navLastScrollY = y;
+}
+
+function setupPhaseNav() {
+  navLastScrollY = window.pageYOffset;
+  syncNavToggleUi();
+
+  var wrap = document.querySelector(".phase-nav-wrap");
+  if (wrap) {
+    wrap.addEventListener("transitionend", function (event) {
+      if (event.propertyName === "grid-template-rows") syncHeaderOffset();
+    });
+  }
+
+  var button = document.getElementById("nav-toggle");
+  if (!button) return;
+
+  // Одна кнопка на три состояния: авто -> всегда показан -> всегда скрыт.
+  button.addEventListener("click", function () {
+    var next = NAV_MODES[(NAV_MODES.indexOf(getNavMode()) + 1) % NAV_MODES.length];
+    applyNavMode(next, true);
+    // Переход длится --t; transitionend его и поймает, но при отключённых
+    // анимациях события не будет — подстраховываемся таймером.
+    setTimeout(syncHeaderOffset, 220);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", setupPhaseNav);
+
+window.addEventListener(
+  "scroll",
+  function () {
+    if (navTicking) return;
+    navTicking = true;
+    window.requestAnimationFrame(function () {
+      navTicking = false;
+      onNavScroll();
+    });
+  },
+  { passive: true }
+);
+
 function openPhaseFromHash() {
+  // Прыжок по якорю мы отмеряем от высоты шапки, поэтому она не должна
+  // меняться прямо в этот момент: в режиме "авто" разворачиваем ряд фаз
+  // мгновенно и на несколько сотен миллисекунд глушим реакцию на прокрутку
+  // (сам scrollIntoView её тоже вызовет). Закреплённый вручную режим не
+  // трогаем — там высота и так постоянная.
+  navSuppressUntil = Date.now() + 400;
+  if (getNavMode() === "auto") expandNavInstantly();
+
   syncHeaderOffset();
 
   const id = decodeURIComponent(location.hash.slice(1));
@@ -61,6 +233,7 @@ function openPhaseFromHash() {
 
   details.open = true;
   details.scrollIntoView(); // учитывает scroll-margin-top, т.е. высоту шапки
+  navLastScrollY = window.pageYOffset;
 }
 
 document.addEventListener("DOMContentLoaded", openPhaseFromHash);

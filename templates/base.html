@@ -16,24 +16,40 @@
         data-light="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"
         crossorigin="anonymous" referrerpolicy="no-referrer">
 
-  <!-- Тему выставляем здесь, до отрисовки страницы: если делать это из app.js
-       (он в конце <body>), сайт успеет моргнуть чужой темой.
-       Порядок такой: явный выбор пользователя из localStorage, а если его
-       ещё нет — настройка ОС. В localStorage при этом ничего не пишем:
+  <!-- Тему и состояние списка фаз выставляем здесь, до отрисовки страницы:
+       если делать это из app.js (он в конце <body>), сайт успеет моргнуть
+       чужой темой, а свёрнутый список фаз ещё и дёрнет всю страницу вверх —
+       он меняет высоту липкой шапки.
+       Порядок для темы такой: явный выбор пользователя из localStorage, а если
+       его ещё нет — настройка ОС. В localStorage при этом ничего не пишем:
        записывает только клик по переключателю, иначе разовое значение от ОС
        залипло бы навсегда и перестало за ней следовать. -->
   <script>
     (function () {
+      var root = document.documentElement;
+
       var stored = null;
       try { stored = localStorage.getItem("theme"); } catch (e) {}
 
       var theme = (stored === "light" || stored === "dark") ? stored
         : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
 
-      document.documentElement.setAttribute("data-theme", theme);
+      root.setAttribute("data-theme", theme);
 
       var hl = document.getElementById("hl-theme");
       if (hl) hl.href = hl.getAttribute("data-" + theme);
+
+      // Режим списка фаз: "auto" — прячется при прокрутке вниз и возвращается
+      // при прокрутке вверх; "shown" / "hidden" — закреплён вручную кнопкой.
+      // Без сохранённого выбора — "auto". Атрибут data-nav-collapsed отвечает
+      // уже не за режим, а за то, свёрнут список прямо сейчас или нет: в auto
+      // им дальше управляет прокрутка (см. app.js).
+      var navMode = null;
+      try { navMode = localStorage.getItem("phase-nav"); } catch (e) {}
+      if (navMode !== "shown" && navMode !== "hidden") navMode = "auto";
+
+      root.setAttribute("data-nav-mode", navMode);
+      if (navMode === "hidden") root.setAttribute("data-nav-collapsed", "");
     })();
   </script>
 
@@ -48,7 +64,17 @@
            разного размера, и единый процент — уже справочная величина,
            а не главный показатель. Рядом с ней — переключатель темы. #}
         <div class="title-side">
-          <span class="pct"><span id="pct">{{ percent }}%</span> · <span id="counts">{{ total_done }}/{{ total_all }}</span></span>
+          {# Дробь done/all вынесена в отдельный span: на узком экране её прячет
+             CSS, иначе строка заголовка не помещается в одну строку и шапка
+             становится выше — ровно то, с чем борется сворачивающийся список. #}
+          <span class="pct"><span id="pct">{{ percent }}%</span><span class="pct-counts"> · <span id="counts">{{ total_done }}/{{ total_all }}</span></span></span>
+          {# Кнопка стоит здесь, а не у самого списка фаз: внутри списка она
+             исчезала бы вместе с ним, а отдельной строкой под ним — вернула бы
+             ту самую высоту, ради которой список и сворачивается. #}
+          <button type="button" class="nav-toggle" id="nav-toggle"
+                  aria-controls="phase-nav" aria-expanded="true">
+            <span class="nav-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
           {# На кнопке нарисована та тема, в которую переключит клик, а не текущая. #}
           <button type="button" class="theme-toggle" id="theme-toggle"
                   aria-label="Переключить тему" title="Переключить тему оформления">
@@ -70,11 +96,20 @@
         {% endfor %}
       </div>
 
-      <nav class="phase-nav">
-        {% for phase in phases %}
-        <a href="{{ url_for('index') }}#{{ phase.code }}" class="track-{{ phase.track }}">{{ phase.title }}</a>
-        {% endfor %}
-      </nav>
+      {# Ссылок тринадцать, и на десктопе они занимают до трёх строк липкой
+         шапки — поэтому ряд умеет складываться. Обёрток две: внешняя едет
+         с grid-template-rows 1fr -> 0fr (так высота анимируется, не зная
+         её в пикселях), внутренняя обрезает содержимое. Вешать overflow
+         на саму .phase-nav нельзя: на телефоне она прокручивается вбок. #}
+      <div class="phase-nav-wrap">
+        <div class="phase-nav-clip">
+          <nav class="phase-nav" id="phase-nav">
+            {% for phase in phases %}
+            <a href="{{ url_for('index') }}#{{ phase.code }}" class="track-{{ phase.track }}">{{ phase.title }}</a>
+            {% endfor %}
+          </nav>
+        </div>
+      </div>
     </div>
   </header>
 
