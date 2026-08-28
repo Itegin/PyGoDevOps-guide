@@ -67,12 +67,13 @@ data/
   lessons_data.py         ~740 lines: PHASES list + all_lesson_ids()
   lesson_content.py       ~7350 lines: CONTENT dict of long-form Markdown
 templates/
-  base.html               shell: sticky header, per-track progress bars, phase nav, reset form
+  base.html               shell: inline theme script in <head>, sticky header,
+                          theme toggle button, per-track progress bars, phase nav, reset form
   index.html              phase <details> blocks + lesson checkboxes + "continue" card
   lesson_detail.html      single lesson page: theory/practice/verify, notes, prev/next
 static/
-  style.css               the entire visual design (see §5)
-  app.js                  progressive enhancement for checkbox toggling
+  style.css               the entire visual design, both themes (see §5)
+  app.js                  progressive enhancement for checkbox toggling + the theme toggle click
   notes.js                debounced autosave for the per-lesson note
 ```
 
@@ -203,38 +204,157 @@ state (they don't move the course counters).
 
 ## 5. Design constraints — do not change without being explicitly asked
 
-The look is deliberate. `static/style.css` is the single source of truth and
-opens with a comment saying the site is personal, hence no animations and no
-extra effects.
+The look is deliberate. `static/style.css` is the single source of truth: it
+opens with a header comment describing the system, and every colour, spacing
+step, radius, font size and transition in the file comes from a custom property
+declared at the top. **There are no colour literals in the rules themselves** —
+to change the palette you edit the two theme blocks, nothing else.
 
-- **Pure black background** — `--bg: #000000`, and `--panel: #000000` too:
-  panels are the *same* colour as the page and are visible only by their border.
-  Content sits in bordered "frame" boxes (`--border: #332d55`, a muted purple
-  outline) — phases, lessons, lesson pages, buttons, link chips. **No filled
-  panel backgrounds.** The only darker fills are inside rendered Markdown (code
-  `#14121f`, `pre` `#0a0912`, blockquote/table headers `#0e0c18`).
-- **Track colour-coding is meaningful — preserve it.** The `track` field on each
-  phase maps to a `track-*` CSS class:
-  - `track-py` → **purple** `--purple: #a78bfa` — Python track
-  - `track-go` → **blue** `--blue: #5b9dff` — Go track
-  - `track-project` → **white** `--white: #f3f2fa` — project phases
-  - `track-devops` → **a purple→blue gradient**, not a colour of its own —
-    phases `a1` / `a2` / `a3` (Ansible, CI/CD + Terraform, Kubernetes)
+### The card system
 
-  It drives the phase-nav border, the phase left border, checkbox
-  `accent-color`, link and heading colours, and hover states. Don't collapse it
-  to a single accent colour and don't reassign the colours.
-- **The devops track has no hue of its own, on purpose.** Ansible is Python,
-  the Kubernetes ecosystem is Go — so the track is painted as a transition from
-  `--purple` to `--blue` instead of a fourth colour. **Do not add a devops
-  colour variable.** The technique is the same everywhere: make the border (or
-  just its left edge) `transparent` and paint the gradient as a *background*
-  underneath it — `linear-gradient(...) left / 4px 100% no-repeat` for the left
-  strips, and the two-layer `padding-box` / `border-box` trick for full borders.
-  `border-image` is deliberately not used: it kills `border-radius`.
-  Where a gradient is technically impossible — `accent-color` on checkboxes,
-  `outline-color` on focus — the devops track just inherits the default purple.
-  That is the intended fallback, not an oversight.
+Content sits on *elevated cards*, not in outline-only frames. There are four
+surface levels and they always nest in this order:
+
+| Token | What it is | Used by |
+|---|---|---|
+| `--bg` | page background | `body` |
+| `--surface` | a card on the page | `details.phase`, `.lesson-page`, `.continue-card`, `.topbar`, `.sticky-nav`, `.nav-btn` |
+| `--surface-sunken` | a recessed area *inside* a card | `.ph-body`, `pre`/`code`, blockquote, `th`, chips, buttons, `.note-area` |
+| `--surface-raised` | a card inside the recessed area | `ul.lessons li`, `.verify-list li` |
+
+Plus `--surface-hover` for hover fills. Cards get `--shadow-1` at rest and
+`--shadow-2` on hover, and radii from `--r-lg` (14px, cards) → `--r-md` (10px,
+nested cards) → `--r-sm` (7px, chips and buttons).
+
+**In light mode the shadow carries the elevation.** In dark mode it cannot —
+a shadow does not read against a near-black page — so there the card reads as
+raised because *its surface is lighter than the page*, with the shadow only
+supporting it (a dark halo below plus a barely-there `inset 0 1px 0` white
+highlight along the top edge). If you change the dark surfaces, keep them
+ordered lightest-on-top or the depth collapses.
+
+The page background is `#08070e`, no longer literally pure black — a very
+near-black that lets the cards sit above it. Don't push it back to `#000000`
+without also rethinking the elevation.
+
+### Two themes
+
+- `:root` **is the dark theme**; `:root[data-theme="light"]` overrides the same
+  tokens for the light one. There is deliberately **no `prefers-color-scheme`
+  media query in the CSS** — duplicating the whole palette into one is exactly
+  what the token layer exists to avoid.
+- The theme is applied by a small inline script in `base.html`'s `<head>`,
+  **before the page paints** (doing it from `app.js`, which loads at the end of
+  `<body>`, makes the site flash the wrong colours). It reads `localStorage`
+  first, falls back to `matchMedia("(prefers-color-scheme: light)")`, and stamps
+  `data-theme` on `<html>` either way.
+- **Nothing is written to `localStorage` until the toggle is clicked** (the
+  click handler is `setupThemeToggle()` in `app.js`). That is what keeps the
+  site following the OS setting until the user makes an explicit choice —
+  writing the detected value on first visit would freeze it forever.
+- Known trade-off: with JS disabled no `data-theme` is set, so `:root` applies
+  and the visitor always gets the dark theme regardless of their OS.
+- highlight.js: `<link id="hl-theme">` in `<head>` carries **no `href`** and two
+  data attributes, `data-dark` / `data-light`, pointing at the cdnjs
+  `github-dark` / `github` stylesheets. Both the head script and the toggle
+  handler set `href` from them. An empty `href` fetches nothing, and without JS
+  highlight.js does not run at all, so there is no fallback to add. The CDN file
+  is only a skeleton anyway — the `--hl-*` variables at the bottom of
+  `style.css` (a set per theme) are what actually colours the code, and they are
+  what keeps highlighting correct when the CDN is unreachable on the home LAN.
+
+### Track colour-coding is meaningful — preserve it
+
+The `track` field on each phase maps to a `track-*` CSS class, which sets two
+inherited custom properties, and everything inside picks them up:
+
+- `--accent` — the track's single colour: link and heading colours, hover
+  states, focus outline, `.note-status.ok`.
+- `--strip` — the track's colour *as an image*, for the 4px edge and the
+  checkbox fill.
+
+| Class | `--accent` | Meaning |
+|---|---|---|
+| `track-py` | `--purple` | Python track |
+| `track-go` | `--blue` | Go track |
+| `track-project` | `--project` | project phases (a neutral, not a hue) |
+| `track-devops` | `--purple` | phases `a1`/`a2`/`a3` — see below |
+
+Each has different values per theme: `--purple` is `#a78bfa` in dark but
+`#6d43c8` in light, `--blue` `#5b9dff` / `#2563eb`, `--project` a near-white
+`#cbc7e2` in dark and a slate `#5b6478` in light. The dark values wash out on
+white; that is why the light theme has its own. Don't collapse the tracks to a
+single accent and don't reassign which track owns which colour.
+
+**Since the redesign the track colour is a small accent detail, not the whole
+outline of the block.** It shows up in exactly three places: a 4px strip down
+the left edge of a card, a 7px dot before each phase link in the header, and the
+fill of a ticked checkbox. Cards themselves have a neutral `--border`. Keep it
+that way — colouring a whole card border again brings back the noise the
+redesign removed.
+
+### `--strip` must always be an image
+
+Even for a solid colour, write it as `linear-gradient(c, c)` and never as a bare
+colour. The rules draw it as
+
+```css
+background: var(--strip) left / var(--strip-w) 100% no-repeat, var(--surface);
+```
+
+and in that shorthand a bare colour is parsed as `background-color`, so the
+"strip" floods the entire element. This costs a debugging round every time it is
+forgotten.
+
+### The devops track has no hue of its own, on purpose
+
+Ansible is Python, the Kubernetes ecosystem is Go — so the track is painted as a
+transition from `--purple` to `--blue` instead of a fourth colour. **Do not add
+a devops colour variable.** Because `--strip` is a background image, the
+gradient works unchanged for the left edge, the header dot, the progress bar and
+the ticked checkbox. The only place it cannot go is `outline-color` on the focus
+ring, where the track falls back to `--accent` (purple). That is the intended
+fallback, not an oversight.
+
+(The old two-layer `padding-box` / `border-box` trick that painted a gradient
+*border* is gone along with the coloured outlines — the strip replaced it. If
+you ever need a gradient border again, that trick is still the way: `border-image`
+kills `border-radius`.)
+
+### Checkboxes are drawn by us
+
+`input[type=checkbox]` is `appearance: none` — a rounded square matching the
+cards, filled with `var(--strip)` when checked and stamped with an SVG tick.
+This is what lets the devops checkbox be gradient-filled, which `accent-color`
+could never do. It is still a plain `<input type=checkbox>`, so the forms,
+`requestSubmit()` and `app.js` are untouched — do not replace it with a
+`<span>`-based fake.
+
+The tick colour cannot be a variable inside a `data:` URI, so two ready-made
+images live at `:root`: `--check-white` and `--check-dark`, selected through
+`--check-img`. The one override is `.track-project` in dark mode, whose fill is
+near-white and would swallow a white tick.
+
+Two gotchas that are already handled and should stay handled:
+
+- `details.phase` needs `overflow: hidden` (otherwise the strip and the sunken
+  body escape the rounded corners), and that clips its `summary`'s focus ring —
+  hence `details.phase > summary:focus-visible{ outline-offset: -3px; }`.
+- On the two smaller checkboxes the size override must be
+  `background-size: 12px 12px, auto`: without the `, auto` it applies to the
+  fill layer too and tiles the devops gradient.
+
+### Motion
+
+Short transitions (`--t-fast` 150ms, `--t` 180ms) on hover and focus only —
+border, background, shadow, colour, and the nudge of the "continue" arrow. The
+progress bars animate their width because `app.js` changes it live. There are no
+`@keyframes` and nothing animates on load. A `@media (prefers-reduced-motion:
+reduce)` block turns all of it off. Keep motion at this level; if something
+genuinely needs more, ask first.
+
+### Everything else
+
 - **Header progress is per skill track, not one bar.** `build_track_stats()`
   walks `PHASES` and emits one row per track *in order of first appearance*, so
   the markup is not tied to how many tracks exist — a new track shows up in the
@@ -251,12 +371,13 @@ extra effects.
 - **Typography:** monospace for headers/meta/code — the percent readout,
   counters, `.ph-meta`, `.task`, `.res-title`, `.done-toggle`, `.reset-btn`,
   code blocks; the system sans stack (`-apple-system, "Segoe UI", Roboto, …`)
-  for body text. No web fonts are loaded.
-- **Animations: there are none.** No `transition` and no `@keyframes` anywhere in
-  the stylesheet — state changes are instant, hovers simply swap colour. Keep it
-  that way; if something genuinely needs motion, ask first.
+  for body text. No web fonts are loaded. Sizes come from the `--fs-*` scale
+  (`--fs-xs` 11px … `--fs-xl` 21px) and spacing from `--sp-1` … `--sp-8`
+  (4/8/12/16/20/24/32) — use a step, don't invent a one-off pixel value.
 - Layout is a single `.wrap` column, `max-width: 860px`, mobile-friendly — the
-  point of the site is ticking lessons off from a phone or a laptop.
+  point of the site is ticking lessons off from a phone or a laptop. Verify
+  changes at ~380px: the phase nav scrolls sideways as one row, and wide tables
+  and code blocks must scroll inside their own box rather than widen the page.
 
 ## 6. Commands
 
@@ -339,3 +460,8 @@ Commit and push before deploying, and verify with `git status` and
   `13c3794` / `b68bffb` / `3a81fc0`. Since the deploy is `git pull` on the
   server, the rule still stands: uncommitted work does not ship. Check with
   `git status` and `git ls-tree -r --name-only origin/main`, not with notes here.
+- §5 used to describe a pure-black, outline-only, animation-free look with a
+  single `--panel` colour and `accent-color` checkboxes. That was replaced in
+  `1ee24f8` / `ce9a0c2` / `fe96952` by the light theme and the card system now
+  documented above. If you find a stray comment anywhere still promising "no
+  animations" or "no filled panel backgrounds", it is left over from then.
