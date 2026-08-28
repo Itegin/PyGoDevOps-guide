@@ -67,6 +67,36 @@ document.addEventListener("DOMContentLoaded", openPhaseFromHash);
 window.addEventListener("hashchange", openPhaseFromHash);
 window.addEventListener("resize", syncHeaderOffset);
 
+// Переключатель "тёмная / светлая". Саму тему на <html> выставляет короткий
+// скрипт в <head> (чтобы страница не моргала чужими цветами при загрузке),
+// здесь остаётся только сам клик: перевернуть атрибут, запомнить выбор
+// и подменить файл темы highlight.js.
+//
+// Записываем в localStorage только отсюда: пока пользователь не нажал кнопку,
+// сайт должен следовать за настройкой ОС, а не за тем, какой она была
+// в первый визит.
+function setupThemeToggle() {
+  var button = document.getElementById("theme-toggle");
+  if (!button) return;
+
+  button.addEventListener("click", function () {
+    var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+
+    try {
+      localStorage.setItem("theme", next);
+    } catch (e) {
+      // приватный режим или запрет на хранилище: тема переключится,
+      // но не переживёт перезагрузку — это лучше, чем ошибка в консоли
+    }
+
+    var hl = document.getElementById("hl-theme");
+    if (hl) hl.href = hl.getAttribute("data-" + next);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", setupThemeToggle);
+
 // Шаг урока (практика / пункт проверки). Отдельный обработчик, потому что
 // ответ у /step другой: на общий прогресс курса эти галочки не влияют,
 // обновлять шапку и счётчики фаз тут нечего.

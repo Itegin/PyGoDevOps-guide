@@ -1,13 +1,100 @@
-/* Минимальное оформление — сайт личный, поэтому без анимаций и лишних эффектов. */
+/* Оформление сайта. Две темы — тёмная и светлая; всё, что различается между
+   ними, вынесено в переменные ниже. Дальше по файлу цветовых литералов нет:
+   чтобы поправить палитру, достаточно этих двух блоков.
+
+   Тема выставляется атрибутом data-theme на <html> ещё в <head> (см. base.html),
+   поэтому :root — это тёмная тема, а :root[data-theme="light"] — светлая.
+   Медиазапроса prefers-color-scheme в CSS нет намеренно: выбор ОС читает тот же
+   скрипт в <head>, и после первого клика по переключателю его перебивает
+   сохранённое значение из localStorage. */
 
 :root{
-  --bg: #000000;      /* чисто чёрный фон страницы, как просили */
-  --panel: #000000;   /* панели того же цвета, что и фон — видны только по рамке */
-  --border: #332d55;  /* сама "рамочка" — приглушённый фиолетовый контур */
+  /* поверхности: фон страницы -> карточка -> вложенная карточка -> ховер */
+  --bg: #0a0910;
+  --surface: #131220;
+  --surface-2: #1a1828;
+  --surface-3: #221f33;
+  --surface-sunken: #121020;   /* цитаты, шапки таблиц — «утопленный» фон */
+
+  --border: #262234;
+  --border-strong: #3e3760;
+  --border-dim: #1c192a;       /* рамка выполненного пункта — тусклее обычной */
+
+  --text: #eeecf7;
+  --text-body: #d5d2e6;        /* текст конспекта: чуть мягче заголовков */
+  --text-2: #a29dba;           /* подписи, мета, счётчики */
+  --text-3: #6f6a8a;           /* совсем второстепенное */
+
+  /* акценты треков. devops своего цвета не имеет — см. блок «трек devops» */
   --purple: #a78bfa;
   --blue: #5b9dff;
-  --white: #f3f2fa;
-  --muted: #9692ad;
+  --project: #dcd9ec;
+
+  --track-bg: #211e33;         /* жёлоб полоски прогресса */
+
+  --code-bg: #0d0c15;          /* блок кода */
+  --code-inline-bg: #1c1a2a;   /* код внутри строки */
+
+  /* рамка трека devops: градиент, а не цвет (см. ниже) */
+  --devops-a: #3b3163;
+  --devops-b: #2c3a63;
+
+  /* Значения по умолчанию для акцента и левой полоски. Классы .track-*
+     переопределяют их ниже, и всё, что внутри, подхватывает по наследству —
+     поэтому дублировать правила на каждый трек больше не нужно.
+
+     --strip всегда картинка (даже одноцветная — через linear-gradient из цвета
+     в него же), а не цвет: правила ниже рисуют её как "background: var(--strip)
+     left / 4px 100% no-repeat", и сплошной цвет в такой записи стал бы
+     background-color, то есть залил бы весь элемент вместо полоски. */
+  --accent: var(--purple);
+  --strip: linear-gradient(var(--purple), var(--purple));
+}
+
+:root[data-theme="light"]{
+  --bg: #f5f5f8;
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f7f6fb;
+  --surface-sunken: #f7f7fb;
+
+  --border: #e5e3ee;
+  --border-strong: #cfcbdf;
+  --border-dim: #eeecf4;
+
+  --text: #1a1826;
+  --text-body: #35323f;
+  --text-2: #656179;
+  --text-3: #8b8799;
+
+  /* на белом фиолетовый #a78bfa и синий #5b9dff теряются, поэтому у светлой
+     темы свои, более тёмные варианты тех же двух цветов */
+  --purple: #6d43c8;
+  --blue: #2563eb;
+  --project: #5b6478;
+
+  --track-bg: #e7e5ef;
+
+  --code-bg: #f7f7fb;
+  --code-inline-bg: #f1f0f6;
+
+  --devops-a: #b7a5e0;
+  --devops-b: #a6c2ea;
+}
+
+/* Акцент и левая полоска — по треку. Задаются один раз здесь, всё вложенное
+   берёт их по наследству. */
+.track-py{ --accent: var(--purple); --strip: linear-gradient(var(--purple), var(--purple)); }
+.track-go{ --accent: var(--blue); --strip: linear-gradient(var(--blue), var(--blue)); }
+.track-project{ --accent: var(--project); --strip: linear-gradient(var(--project), var(--project)); }
+.track-devops{
+  /* Своего цвета у трека нет и не должно быть: Ansible — это Python, экосистема
+     Kubernetes — это Go, поэтому трек красится переходом из фиолетового
+     в синий. Там, где градиент технически невозможен (accent-color у чекбоксов,
+     outline у фокуса), трек наследует фиолетовый — это задуманный запасной
+     вариант, а не недосмотр. */
+  --accent: var(--purple);
+  --strip: linear-gradient(180deg, var(--purple), var(--blue));
 }
 
 *{ box-sizing: border-box; }
@@ -18,7 +105,7 @@
 body{
   margin: 0;
   background: var(--bg);
-  color: var(--white);
+  color: var(--text);
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
 }
@@ -27,7 +114,7 @@ body{
 
 /* ---- header ---- */
 .topbar{
-  background: var(--panel);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding: 18px 0;
   position: sticky;
@@ -35,15 +122,35 @@ body{
 }
 .title-row{ display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .title-row h1{ font-size: 18px; margin: 0; }
-.home-link{ color: var(--white); text-decoration: none; }
+.home-link{ color: var(--text); text-decoration: none; }
 .home-link:hover h1{ color: var(--purple); }
-.pct{ font-family: monospace; color: var(--muted); }
+/* Общая цифра и переключатель темы стоят одной группой справа, чтобы
+   space-between в .title-row по-прежнему разводил заголовок и правый край. */
+.title-side{ display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.pct{ font-family: monospace; color: var(--text-2); }
+
+/* Переключатель тёмная/светлая. Показываем ту иконку, которую пользователь
+   получит после клика, — так кнопка читается как действие, а не как статус. */
+.theme-toggle{
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  background: transparent; color: var(--text-2);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: 14px; line-height: 1; cursor: pointer;
+}
+.theme-toggle:hover{ color: var(--text); border-color: var(--border-strong); }
+.theme-icon{ display: none; }
+.theme-icon-sun{ display: block; }                        /* тёмная тема -> предлагаем светлую */
+:root[data-theme="light"] .theme-icon-sun{ display: none; }
+:root[data-theme="light"] .theme-icon-moon{ display: block; }
 
 .bar-outer{
   height: 6px; border-radius: 4px; flex: 1;
-  background: #1c1930; overflow: hidden;
+  background: var(--track-bg); overflow: hidden;
 }
-.bar-inner{ height: 100%; background: var(--purple); }
+/* .bar-inner берёт --strip своего трека: сплошной цвет у py/go/project
+   и градиент у devops — отдельных правил на каждый трек не нужно. */
+.bar-inner{ height: 100%; background: var(--strip); }
 
 /* Прогресс по трекам: у каждого своя полоска своего цвета. Треков может быть
    и три, и четыре — блок просто вытягивается вниз, разметка не завязана
@@ -51,75 +158,44 @@ body{
 .tracks{ margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
 .track-row{ display: flex; align-items: center; gap: 9px; }
 .track-name{
-  font-family: monospace; font-size: 11px; color: var(--muted);
+  font-family: monospace; font-size: 11px; color: var(--text-2);
   flex: 0 0 54px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .track-count{
-  font-family: monospace; font-size: 11px; color: var(--muted);
+  font-family: monospace; font-size: 11px; color: var(--text-2);
   flex: 0 0 auto; min-width: 42px; text-align: right;
 }
-.track-row.track-py .bar-inner{ background: var(--purple); }
-.track-row.track-go .bar-inner{ background: var(--blue); }
-.track-row.track-project .bar-inner{ background: var(--white); }
-/* devops — тот же приём, что и у рамок этого трека: не свой цвет, а переход
-   из фиолетового в синий (см. блок "трек devops" ниже). */
-.track-row.track-devops .bar-inner{ background: linear-gradient(90deg, var(--purple), var(--blue)); }
 
+/* Полоска слева у ссылок на фазы — тем же приёмом, что и у карточек:
+   рамка прозрачная, --strip рисуется фоном под ней. Так один и тот же код
+   работает и для сплошного цвета, и для градиента трека devops. */
 .phase-nav{ margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .phase-nav a{
-  font-size: 12.5px; text-decoration: none; color: var(--muted);
-  border-left: 3px solid var(--border); padding: 4px 2px 4px 7px;
+  font-size: 12.5px; text-decoration: none; color: var(--text-2);
+  border-left: 3px solid transparent;
+  background: var(--strip) left / 3px 100% no-repeat;
+  padding: 4px 2px 4px 7px;
   max-width: 100%; overflow-wrap: anywhere;
 }
-.phase-nav a.track-py{ border-left-color: var(--purple); }
-.phase-nav a.track-go{ border-left-color: var(--blue); }
-.phase-nav a.track-project{ border-left-color: var(--white); }
-.phase-nav a:hover{ color: var(--white); }
+.phase-nav a:hover{ color: var(--text); }
 
-/* ---- трек devops ----
-   Своего цвета у него нет и не должно быть: Ansible — это Python, экосистема
-   Kubernetes — это Go, поэтому трек красится переходом из фиолетового в синий.
-   Приём везде один: рамка (или её левая часть) делается прозрачной, а градиент
-   рисуется фоном под ней — так, в отличие от border-image, сохраняются
-   скруглённые углы. Там, где градиент технически невозможен (accent-color
-   у чекбоксов, outline у фокуса), трек просто наследует фиолетовый по
-   умолчанию — новых цветов в палитре не заводим. */
-.phase-nav a.track-devops{
-  border-left-color: transparent;
-  background: linear-gradient(180deg, var(--purple), var(--blue)) left / 3px 100% no-repeat;
-}
-
+/* ---- трек devops: полная рамка градиентом ----
+   Приём тот же, что и с полосками: рамка делается прозрачной, а градиент
+   рисуется фоном под ней. Два слоя — цвет карточки до рамки (padding-box)
+   и градиент в самой рамке (border-box). border-image не используем
+   намеренно: он убивает border-radius. */
 details.phase.track-devops{
-  /* два слоя фона: чёрный до рамки и градиент в самой рамке */
   border-color: transparent;
   background:
-    linear-gradient(var(--panel), var(--panel)) padding-box,
-    linear-gradient(145deg, #3b3163, #2c3a63) border-box;
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(145deg, var(--devops-a), var(--devops-b)) border-box;
 }
-details.phase.track-devops > summary{
-  border-left-color: transparent;
-  background: linear-gradient(180deg, var(--purple), var(--blue)) left / 4px 100% no-repeat;
-}
-details.phase.track-devops > summary:hover h3{
-  /* один цвет для подсветки текста выбрать всё равно нужно — берём начало
-     градиента, фиолетовый, как у трека Python */
-  color: var(--purple);
-}
-
 .lesson-page.track-devops{
   border-color: transparent;
   background:
-    linear-gradient(var(--bg), var(--bg)) padding-box,
-    linear-gradient(150deg, #3b3163, #2c3a63) border-box;
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(150deg, var(--devops-a), var(--devops-b)) border-box;
 }
-
-.continue-card.track-devops{
-  border-left-color: transparent;
-  background: linear-gradient(180deg, var(--purple), var(--blue)) left / 4px 100% no-repeat;
-}
-/* общее правило ниже перекрашивает всю рамку при наведении — левую полоску
-   надо снова отдать градиенту, иначе она пропадёт */
-a.continue-card.track-devops:hover{ border-color: var(--purple); border-left-color: transparent; }
 
 /* ---- phases ---- */
 main.wrap{ padding-top: 20px; padding-bottom: 40px; }
@@ -128,7 +204,7 @@ details.phase{
   /* якорь #p1 не должен упираться в липкую шапку: точную её высоту
      подставляет app.js в --header-h, 120px — запас на случай без JS */
   scroll-margin-top: var(--header-h, 120px);
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 12px;
@@ -139,53 +215,49 @@ details.phase > summary{
   padding: 14px;
   min-height: 56px;
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  border-left: 4px solid var(--border);
+  border-left: 4px solid transparent;
+  background: var(--strip) left / 4px 100% no-repeat;
 }
 /* Свои "стрелки" вместо стандартного треугольника: по умолчанию раскрыта
    только одна фаза, поэтому должно быть сразу видно, что блок кликабелен. */
 details.phase > summary::after{
   content: "\25B8"; font-family: monospace; font-size: 13px;
-  color: var(--muted); flex-shrink: 0;
+  color: var(--text-2); flex-shrink: 0;
 }
 details.phase[open] > summary::after{ content: "\25BE"; }
-details.phase > summary:hover h3{ color: var(--purple); }
-details.phase.track-go > summary:hover h3{ color: var(--blue); }
-details.phase.track-py > summary{ border-left-color: var(--purple); }
-details.phase.track-go > summary{ border-left-color: var(--blue); }
-details.phase.track-project > summary{ border-left-color: var(--white); }
+details.phase > summary:hover h3{ color: var(--accent); }
 details.phase > summary::-webkit-details-marker{ display: none; }
 
 .ph-title h3{ margin: 0; font-size: 15px; display: inline; }
-.ph-meta{ display: block; font-size: 11.5px; color: var(--muted); font-family: monospace; margin-top: 2px; }
-.ph-progress{ font-family: monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.ph-meta{ display: block; font-size: 11.5px; color: var(--text-2); font-family: monospace; margin-top: 2px; }
+.ph-progress{ font-family: monospace; font-size: 12px; color: var(--text-2); white-space: nowrap; }
 
 .ph-body{ padding: 4px 16px 14px 18px; border-top: 1px solid var(--border); }
-.ph-why{ font-size: 13px; color: var(--muted); margin: 10px 0 12px; }
+.ph-why{ font-size: 13px; color: var(--text-2); margin: 10px 0 12px; }
 
 ul.lessons{ list-style: none; margin: 0; padding: 0; }
 ul.lessons li{
-  /* каждый урок — своя рамочка, а не просто строка списка */
+  /* каждый урок — своя карточка, а не просто строка списка */
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
   margin-bottom: 8px;
   display: flex; gap: 12px; align-items: flex-start;
 }
-ul.lessons li:hover{ border-color: #4a4177; }
+ul.lessons li:hover{ border-color: var(--border-strong); }
 ul.lessons li:last-child{ margin-bottom: 0; }
-ul.lessons li.done{ border-color: #1f1b33; } /* выполненные уроки — рамка тусклее */
+ul.lessons li.done{ border-color: var(--border-dim); } /* выполненные уроки — рамка тусклее */
 /* Чекбокс крупный: сайтом пользуются с телефона, промахиваться мимо галочки
    не должно быть обидно. Структуру формы при этом не трогаем — на неё
    завязаны app.js и requestSubmit() в шаблоне. */
 ul.lessons form.toggle-form{ margin: 0; padding: 2px 6px 8px 0; }
-ul.lessons input[type=checkbox]{ width: 21px; height: 21px; accent-color: var(--purple); cursor: pointer; }
-.track-go input[type=checkbox]{ accent-color: var(--blue); }
+ul.lessons input[type=checkbox]{ width: 21px; height: 21px; accent-color: var(--accent); cursor: pointer; }
 ul.lessons .lesson-info{ font-size: 14px; }
-.lesson-title-link{ color: var(--white); text-decoration: none; display: inline-block; padding: 2px 0; }
-.lesson-title-link:hover{ color: var(--purple); text-decoration: underline; }
-.track-go .lesson-title-link:hover{ color: var(--blue); }
-ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
-.lesson-text, .task{ display: block; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.lesson-title-link{ color: var(--text); text-decoration: none; display: inline-block; padding: 2px 0; }
+.lesson-title-link:hover{ color: var(--accent); text-decoration: underline; }
+ul.lessons li.done .lesson-title-link b{ color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+.lesson-text, .task{ display: block; font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
 .task{ font-family: monospace; }
 
 /* ---- ссылки на конкретные ресурсы ---- */
@@ -193,28 +265,27 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 .links a{
   display: inline-block;
   font-size: 12px;
-  color: var(--blue);
+  color: var(--accent);
   text-decoration: none;
   border: 1px solid var(--border);
   border-radius: 5px;
   padding: 6px 10px;
   overflow-wrap: anywhere;
 }
-.track-py .links a{ color: var(--purple); }
 .links a:hover{ border-color: currentColor; }
 
 /* ---- страница урока (курс-режим) ---- */
-.crumb{ font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
-.crumb a{ color: var(--muted); text-decoration: none; }
+.crumb{ font-size: 12.5px; color: var(--text-2); margin-bottom: 14px; }
+.crumb a{ color: var(--text-2); text-decoration: none; }
 .crumb a:hover{ color: var(--purple); }
 .crumb-sep{ margin: 0 6px; }
 
 .lesson-page{
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 18px 20px 22px;
 }
-.lesson-page.track-go{ border-color: #2a3a5c; }
 
 .lesson-head{
   display: flex; justify-content: space-between; align-items: flex-start;
@@ -225,36 +296,34 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 .lesson-done-form{ margin: 0; flex-shrink: 0; }
 .done-toggle{
   display: flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 12px; font-family: monospace; color: var(--muted);
+  font-size: 12px; font-family: monospace; color: var(--text-2);
   border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px;
   white-space: nowrap;
 }
-.done-toggle input{ accent-color: var(--purple); cursor: pointer; }
-.track-go .done-toggle input{ accent-color: var(--blue); }
+.done-toggle input{ accent-color: var(--accent); cursor: pointer; }
 
 .lesson-task-line{
-  font-family: monospace; font-size: 13px; color: var(--muted);
+  font-family: monospace; font-size: 13px; color: var(--text-2);
   margin: 4px 0 16px;
 }
-.no-content{ font-size: 13px; color: var(--muted); font-style: italic; }
+.no-content{ font-size: 13px; color: var(--text-2); font-style: italic; }
 
 /* Рендер Markdown-конспекта */
 .lesson-content{ font-size: 14.5px; }
-.lesson-content h2{ font-size: 16.5px; margin: 24px 0 10px; color: var(--white); }
+.lesson-content h2{ font-size: 16.5px; margin: 24px 0 10px; color: var(--text); }
 .lesson-content h2:first-child{ margin-top: 0; }
-.lesson-content h3{ font-size: 14.5px; margin: 18px 0 8px; color: var(--purple); }
-.track-go .lesson-content h3{ color: var(--blue); }
-.lesson-content p{ margin: 0 0 12px; color: #d8d6e8; }
-.lesson-content ul, .lesson-content ol{ margin: 0 0 12px; padding-left: 22px; color: #d8d6e8; }
+.lesson-content h3{ font-size: 14.5px; margin: 18px 0 8px; color: var(--accent); }
+.lesson-content p{ margin: 0 0 12px; color: var(--text-body); }
+.lesson-content ul, .lesson-content ol{ margin: 0 0 12px; padding-left: 22px; color: var(--text-body); }
 .lesson-content li{ margin-bottom: 4px; }
-.lesson-content strong{ color: var(--white); }
+.lesson-content strong{ color: var(--text); }
 .lesson-content code{
   font-family: monospace; font-size: 13px; overflow-wrap: anywhere;
-  background: #14121f; border: 1px solid var(--border);
+  background: var(--code-inline-bg); border: 1px solid var(--border);
   border-radius: 4px; padding: 1px 5px;
 }
 .lesson-content pre{
-  background: #0a0912; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
   padding: 12px 14px; margin: 0 0 14px;
   /* длинный код прокручивается вбок внутри своей рамки, а не ломает вёрстку */
   max-width: 100%; overflow-x: auto;
@@ -262,13 +331,12 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 .lesson-content pre code{ white-space: pre; overflow-wrap: normal; }
 .lesson-content pre code{ background: none; border: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
 .lesson-content blockquote{
-  margin: 0 0 14px; padding: 8px 14px; border-left: 3px solid var(--purple);
-  color: var(--muted); background: #0e0c18; border-radius: 0 6px 6px 0;
+  margin: 0 0 14px; padding: 8px 14px; border-left: 3px solid var(--accent);
+  color: var(--text-2); background: var(--surface-sunken); border-radius: 0 6px 6px 0;
 }
-.track-go .lesson-content blockquote{ border-left-color: var(--blue); }
 .lesson-content table{ border-collapse: collapse; width: 100%; margin: 0 0 14px; font-size: 13px; }
 .lesson-content th, .lesson-content td{ border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
-.lesson-content th{ color: var(--white); background: #0e0c18; }
+.lesson-content th{ color: var(--text); background: var(--surface-sunken); }
 .lesson-content hr{ border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 
 /* ---- шаги урока: теория / практика / проверка ---- */
@@ -277,12 +345,12 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 .step-head{ display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
 .step-icon{ font-size: 13px; line-height: 1; }
 .step-name{
-  font-family: monospace; font-size: 11px; color: var(--muted);
+  font-family: monospace; font-size: 11px; color: var(--text-2);
   text-transform: uppercase; letter-spacing: .05em;
 }
 .lesson-step{ margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
 
-.practice-list{ margin: 0 0 12px; padding-left: 22px; font-size: 14px; color: #d8d6e8; }
+.practice-list{ margin: 0 0 12px; padding-left: 22px; font-size: 14px; color: var(--text-body); }
 /* pre-wrap: шаг практики может быть многострочным (например, содержимое
    inventory.ini прямо в тексте шага) — переносы из данных нужно сохранить,
    иначе такой шаг склеивается в одну строку. */
@@ -291,64 +359,61 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 
 .verify-list{ list-style: none; margin: 0; padding: 0; }
 .verify-list li{
+  background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 12px; margin-bottom: 8px;
 }
 .verify-list li:last-child{ margin-bottom: 0; }
-.verify-list li:hover{ border-color: #4a4177; }
-.verify-list li.done{ border-color: #1f1b33; }
+.verify-list li:hover{ border-color: var(--border-strong); }
+.verify-list li.done{ border-color: var(--border-dim); }
 .verify-item{ display: flex; gap: 11px; align-items: flex-start; cursor: pointer; font-size: 14px; }
 .verify-item input{
   width: 19px; height: 19px; flex-shrink: 0; margin: 1px 0 0;
-  accent-color: var(--purple); cursor: pointer;
+  accent-color: var(--accent); cursor: pointer;
 }
-.track-go .verify-item input{ accent-color: var(--blue); }
 .verify-list li.done .verify-item span{
-  color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border);
+  color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--border-strong);
 }
 
 .lesson-links{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
-.res-title{ font-family: monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.res-title{ font-family: monospace; font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
 
 /* ---- личные заметки к уроку ---- */
 /* Отделяем так же, как блок "Материалы по теме": линия сверху, тот же .res-title. */
 .lesson-notes{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .note-form{ margin: 0; }
 .note-area{
-  /* textarea не наследует ни шрифт, ни цвета — на чёрном фоне без этих
-     четырёх строк браузер нарисует светлый прямоугольник от себя. */
+  /* textarea не наследует ни шрифт, ни цвета — без этих строк браузер
+     нарисует свой прямоугольник мимо темы. */
   font-family: inherit; font-size: 14px; line-height: 1.5;
-  color: var(--white); background: var(--panel);
+  color: var(--text); background: var(--surface-3);
   width: 100%; display: block;
   min-height: 120px; resize: vertical;
   border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 12px;
 }
-.note-area::placeholder{ color: var(--muted); }
+.note-area::placeholder{ color: var(--text-3); }
 /* Фокус показываем самой рамкой: общий outline из блока ниже вокруг textarea
    рисовался бы вторым контуром поверх неё, со своим радиусом. Цвет — по треку. */
-.note-area:focus{ outline: none; border-color: var(--purple); }
-.track-go .note-area:focus{ border-color: var(--blue); }
+.note-area:focus{ outline: none; border-color: var(--accent); }
 
 .note-bar{
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin-top: 8px; flex-wrap: wrap;
 }
-.note-status{ font-family: monospace; font-size: 11.5px; color: var(--muted); }
-.note-status.ok{ color: var(--purple); }
-.track-go .note-status.ok{ color: var(--blue); }
-.note-status.err{ color: var(--white); }
+.note-status{ font-family: monospace; font-size: 11.5px; color: var(--text-2); }
+.note-status.ok{ color: var(--accent); }
+.note-status.err{ color: var(--text); }
 
 .note-save-btn{
-  font-family: monospace; font-size: 12px; color: var(--muted);
+  font-family: monospace; font-size: 12px; color: var(--text-2);
   background: transparent; border: 1px solid var(--border); border-radius: 6px;
   padding: 7px 12px; cursor: pointer; margin-left: auto;
 }
-.note-save-btn:hover{ color: var(--white); border-color: var(--purple); }
-.track-go .note-save-btn:hover{ border-color: var(--blue); }
+.note-save-btn:hover{ color: var(--text); border-color: var(--accent); }
 
 /* Пометка "есть заметка" рядом с названием урока на главной. */
-.note-mark{ font-size: 12px; color: var(--muted); margin-left: 6px; }
+.note-mark{ font-size: 12px; color: var(--text-2); margin-left: 6px; }
 
 .lesson-nav{
   display: flex; justify-content: space-between; gap: 12px;
@@ -356,49 +421,48 @@ ul.lessons li.done .lesson-title-link b{ color: var(--muted); text-decoration: l
 }
 .nav-btn{
   flex: 1; min-width: 140px; max-width: 48%;
+  background: var(--surface);
   border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px 14px; font-size: 13px; color: var(--white);
+  padding: 12px 14px; font-size: 13px; color: var(--text);
   text-decoration: none; overflow-wrap: anywhere;
 }
-.nav-btn:hover{ border-color: var(--purple); }
+.nav-btn:hover{ border-color: var(--accent); }
 .nav-btn.next{ text-align: right; margin-left: auto; }
 
 /* ---- footer ---- */
 .footer{ padding: 10px 16px 40px; }
 .reset-btn{
-  font-family: monospace; font-size: 12px; color: var(--muted);
+  font-family: monospace; font-size: 12px; color: var(--text-2);
   background: transparent; border: 1px solid var(--border); border-radius: 6px;
   padding: 7px 12px; cursor: pointer;
 }
-.reset-btn:hover{ color: var(--white); border-color: var(--purple); }
+.reset-btn:hover{ color: var(--text); border-color: var(--purple); }
 
 /* ---- "продолжить с того места, где остановился" (главная) ---- */
 .continue-card{
   display: flex; align-items: center; gap: 12px;
-  border: 1px solid var(--border); border-left-width: 4px;
+  /* левая полоска — фоном под прозрачной рамкой, как у фаз */
+  background: var(--strip) left / 4px 100% no-repeat, var(--surface);
+  border: 1px solid var(--border); border-left: 4px solid transparent;
   border-radius: 10px; padding: 14px 16px; margin-bottom: 18px;
-  color: var(--white); text-decoration: none;
+  color: var(--text); text-decoration: none;
 }
-.continue-card.track-py{ border-left-color: var(--purple); }
-.continue-card.track-go{ border-left-color: var(--blue); }
-.continue-card.track-project,
-.continue-card.continue-done{ border-left-color: var(--white); }
-a.continue-card:hover{ border-color: var(--purple); }
-a.continue-card.track-go:hover{ border-color: var(--blue); }
-a.continue-card.track-project:hover{ border-color: var(--white); }
+/* карточка "все уроки пройдены" трека не имеет — красим нейтральным */
+.continue-card.continue-done{ --strip: linear-gradient(var(--project), var(--project)); }
+a.continue-card:hover{ border-color: var(--accent); border-left-color: transparent; }
 
 .continue-label{
   font-family: monospace; font-size: 11px; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--muted); flex-shrink: 0;
+  text-transform: uppercase; color: var(--text-2); flex-shrink: 0;
 }
 .continue-title{ font-size: 15px; font-weight: 600; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.continue-arrow{ font-family: monospace; font-size: 16px; color: var(--muted); flex-shrink: 0; }
-a.continue-card:hover .continue-arrow{ color: var(--white); }
+.continue-arrow{ font-family: monospace; font-size: 16px; color: var(--text-2); flex-shrink: 0; }
+a.continue-card:hover .continue-arrow{ color: var(--text); }
 
 /* ---- прилипшая панель "предыдущий / следующий" на странице урока ---- */
 .sticky-nav{
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  background: var(--bg); border-top: 1px solid var(--border);
+  background: var(--surface); border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .sticky-nav-inner{
@@ -409,16 +473,16 @@ a.continue-card:hover .continue-arrow{ color: var(--white); }
   display: flex; align-items: center; gap: 6px; min-width: 0;
   min-height: 38px; padding: 6px 10px;
   border: 1px solid var(--border); border-radius: 8px;
-  color: var(--white); text-decoration: none; font-size: 12.5px;
+  color: var(--text); text-decoration: none; font-size: 12.5px;
 }
 .sticky-btn.prev, .sticky-btn.next{ flex: 1 1 0; }
 .sticky-btn.next{ justify-content: flex-end; text-align: right; }
-.sticky-btn.up{ flex: 0 0 auto; font-family: monospace; font-size: 11.5px; color: var(--muted); }
-.sticky-btn.disabled{ flex: 0 0 auto; color: var(--muted); border-style: dashed; }
-.sticky-arrow{ font-family: monospace; color: var(--muted); flex-shrink: 0; }
+.sticky-btn.up{ flex: 0 0 auto; font-family: monospace; font-size: 11.5px; color: var(--text-2); }
+.sticky-btn.disabled{ flex: 0 0 auto; color: var(--text-2); border-style: dashed; }
+.sticky-arrow{ font-family: monospace; color: var(--text-2); flex-shrink: 0; }
 .sticky-text{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-a.sticky-btn:hover{ border-color: var(--purple); }
-a.sticky-btn:hover .sticky-arrow, a.sticky-btn.up:hover{ color: var(--white); }
+a.sticky-btn:hover{ border-color: var(--accent); }
+a.sticky-btn:hover .sticky-arrow, a.sticky-btn.up:hover{ color: var(--text); }
 
 /* чтобы панель не перекрывала конец страницы и кнопку сброса */
 body.page-lesson{ padding-bottom: 78px; }
@@ -429,12 +493,10 @@ button:focus-visible,
 summary:focus-visible,
 label:focus-visible,
 input[type=checkbox]:focus-visible{
-  outline: 2px solid var(--purple);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 4px;
 }
-.track-go a:focus-visible,
-.track-go input[type=checkbox]:focus-visible{ outline-color: var(--blue); }
 
 /* ---- узкие экраны (телефон в руке, ~380px) ---- */
 @media (max-width: 620px){
@@ -474,23 +536,36 @@ input[type=checkbox]:focus-visible{
 }
 
 /* ---- highlight.js: перекрашиваем тему с CDN под свою палитру ----
-   Подключённая в base.html тема нужна только как каркас (набор классов),
-   цвета ниже — те же фиолетовый/синий/белый, что и по всему сайту. */
+   Файл темы с CDN (его выбирает по текущей теме скрипт в <head>) нужен только
+   как каркас — набор классов. Цвета ниже наши, и они же держат подсветку
+   правильной, если CDN недоступен: сайт живёт в домашней сети. */
 :root{
   --hl-comment: #6f6a8a;
   --hl-keyword: #a78bfa;  /* ключевые слова — фиолетовый (трек Python) */
   --hl-string:  #5b9dff;  /* строки — синий (трек Go) */
   --hl-number:  #c4b5fd;
   --hl-type:    #86a9e8;
-  --hl-name:    #f3f2fa;
-  --hl-attr:    #d8d6e8;
+  --hl-name:    #eeecf7;
+  --hl-attr:    #d5d2e6;
   --hl-meta:    #7d76a6;
+}
+/* Те же роли, но в тёмных вариантах — на светлом фоне исходные цвета
+   не читаются. */
+:root[data-theme="light"]{
+  --hl-comment: #8b8799;
+  --hl-keyword: #7c3aed;
+  --hl-string:  #1d4ed8;
+  --hl-number:  #9333ea;
+  --hl-type:    #1e40af;
+  --hl-name:    #17151f;
+  --hl-attr:    #3f3b52;
+  --hl-meta:    #6b6880;
 }
 
 .lesson-content pre code.hljs{
   background: none;   /* фон даёт сама рамка <pre>, тема свой не навязывает */
   padding: 0;
-  color: #d8d6e8;
+  color: var(--text-body);
 }
 
 .hljs-comment,
@@ -538,4 +613,4 @@ input[type=checkbox]:focus-visible{
 .hljs-deletion{ color: var(--hl-meta); }
 
 .hljs-emphasis{ font-style: italic; }
-.hljs-strong{ font-weight: 700; color: var(--white); }
+.hljs-strong{ font-weight: 700; color: var(--text); }

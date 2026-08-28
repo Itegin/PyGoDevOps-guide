@@ -7,10 +7,36 @@
 
   <!-- Подсветка синтаксиса в конспектах уроков (highlight.js с CDN).
        Тема нужна только как каркас: её цвета мы переопределяем в style.css
-       под свою палитру, поэтому наш style.css подключается ПОСЛЕ неё. -->
-  <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+       под свою палитру, поэтому наш style.css подключается ПОСЛЕ неё.
+       href намеренно пуст: его подставит скрипт ниже — свой файл на тёмную
+       и на светлую тему. Без JS highlight.js всё равно не запустится,
+       так что пустой тег ничего не ломает и лишнего не качает. -->
+  <link rel="stylesheet" id="hl-theme"
+        data-dark="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+        data-light="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"
         crossorigin="anonymous" referrerpolicy="no-referrer">
+
+  <!-- Тему выставляем здесь, до отрисовки страницы: если делать это из app.js
+       (он в конце <body>), сайт успеет моргнуть чужой темой.
+       Порядок такой: явный выбор пользователя из localStorage, а если его
+       ещё нет — настройка ОС. В localStorage при этом ничего не пишем:
+       записывает только клик по переключателю, иначе разовое значение от ОС
+       залипло бы навсегда и перестало за ней следовать. -->
+  <script>
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem("theme"); } catch (e) {}
+
+      var theme = (stored === "light" || stored === "dark") ? stored
+        : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+
+      document.documentElement.setAttribute("data-theme", theme);
+
+      var hl = document.getElementById("hl-theme");
+      if (hl) hl.href = hl.getAttribute("data-" + theme);
+    })();
+  </script>
+
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -20,8 +46,16 @@
         <a class="home-link" href="{{ url_for('index') }}"><h1>Python + Go → DevOps</h1></a>
         {# Общая цифра осталась, но ушла в одну строку с заголовком: треки
            разного размера, и единый процент — уже справочная величина,
-           а не главный показатель. #}
-        <span class="pct"><span id="pct">{{ percent }}%</span> · <span id="counts">{{ total_done }}/{{ total_all }}</span></span>
+           а не главный показатель. Рядом с ней — переключатель темы. #}
+        <div class="title-side">
+          <span class="pct"><span id="pct">{{ percent }}%</span> · <span id="counts">{{ total_done }}/{{ total_all }}</span></span>
+          {# На кнопке нарисована та тема, в которую переключит клик, а не текущая. #}
+          <button type="button" class="theme-toggle" id="theme-toggle"
+                  aria-label="Переключить тему" title="Переключить тему оформления">
+            <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+            <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
+          </button>
+        </div>
       </div>
 
       {# Полоска на каждый трек. Список треков приходит из build_track_stats()
