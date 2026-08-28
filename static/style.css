@@ -417,7 +417,7 @@ input[type=checkbox]:checked{
 }
 .done-toggle:hover{ color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
 .done-toggle input{ width: 17px; height: 17px; border-radius: 5px; }
-.done-toggle input:checked{ background-size: 12px 12px; }
+.done-toggle input:checked{ background-size: 12px 12px, auto; }
 
 .lesson-task-line{
   font-family: monospace; font-size: var(--fs-md); color: var(--text-2);
@@ -497,7 +497,7 @@ input[type=checkbox]:checked{
 .verify-list li.done:hover{ box-shadow: var(--shadow-1); background: var(--surface-raised); }
 .verify-item{ display: flex; gap: var(--sp-3); align-items: flex-start; cursor: pointer; font-size: var(--fs-base); }
 .verify-item input{ width: 19px; height: 19px; margin-top: 2px; }
-.verify-item input:checked{ background-size: 13px 13px; }
+.verify-item input:checked{ background-size: 13px 13px, auto; }
 .verify-list li.done .verify-item span{
   color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--border-strong);
 }
@@ -641,6 +641,11 @@ input[type=checkbox]:focus-visible{
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
+/* У карточки фазы overflow: hidden (иначе полоска трека и тело фазы вылезут
+   за скругление), а её шапка прижата к самому краю карточки — рамка фокуса
+   с отступом наружу оказалась бы за пределами карточки и была бы обрезана
+   целиком. Поэтому здесь рисуем её внутрь. */
+details.phase > summary:focus-visible{ outline-offset: -3px; }
 
 /* ================= узкие экраны (телефон в руке, ~380px) ================= */
 @media (max-width: 620px){
