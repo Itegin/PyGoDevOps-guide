@@ -270,6 +270,94 @@ function setupThemeToggle() {
 
 document.addEventListener("DOMContentLoaded", setupThemeToggle);
 
+// ---- кнопка «Копировать» у блоков кода ------------------------------------
+// Конспекты — это в основном команды, которые нужно перенести в терминал,
+// поэтому у каждого <pre><code> появляется своя кнопка. В разметке её нет:
+// HTML конспекта приходит из Markdown, добавлять её туда пришлось бы на
+// стороне сервера, разбирая готовый HTML.
+//
+// Каждый <pre> заворачивается в .code-block, и кнопка кладётся рядом с ним,
+// а не внутрь: highlight.js переписывает содержимое <code> целиком и стёр бы
+// всё, что лежит внутри, а <pre> к тому же прокручивается вбок — кнопка внутри
+// него уезжала бы вместе с длинной строкой.
+//
+// Порядок с highlight.js неважен (он трогает только <code>), но на всякий
+// случай есть и защита от повторного запуска: уже завёрнутый <pre> пропускаем,
+// второй кнопки не появится.
+
+// Кладёт текст в буфер обмена. navigator.clipboard есть только в защищённом
+// контексте — то есть по https или на localhost. Сайт же чаще всего открыт
+// в домашней сети по http://<ip>:8080, где этого API просто нет, поэтому
+// запасной путь через execCommand("copy") здесь не перестраховка, а рабочий
+// вариант для реального развёртывания.
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+
+  return new Promise(function (resolve, reject) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    // прячем поле за пределами экрана: оно нужно ровно на один вызов
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+
+    document.body.removeChild(area);
+    ok ? resolve() : reject(new Error("copy failed"));
+  });
+}
+
+// Подпись кнопки возвращается к исходной через полторы секунды. Таймер живёт
+// на самой кнопке: без этого частые клики оставили бы подпись висеть или,
+// наоборот, сбросили бы её раньше времени.
+function flashCopyLabel(button, label, isError) {
+  button.textContent = label;
+  button.classList.toggle("copied", !isError);
+
+  clearTimeout(button._copyTimer);
+  button._copyTimer = setTimeout(function () {
+    button.textContent = "Копировать";
+    button.classList.remove("copied");
+  }, 1500);
+}
+
+function setupCodeCopy() {
+  document.querySelectorAll(".lesson-content pre").forEach(function (pre) {
+    if (pre.parentElement && pre.parentElement.classList.contains("code-block")) return;
+
+    var wrap = document.createElement("div");
+    wrap.className = "code-block";
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "code-copy";
+    button.textContent = "Копировать";
+    button.setAttribute("aria-label", "Скопировать код в буфер обмена");
+    wrap.appendChild(button);
+
+    button.addEventListener("click", function () {
+      // текст берём в момент клика, а не при создании кнопки: к этому времени
+      // highlight.js уже перебрал <code>, да и разметка могла поменяться
+      var code = pre.querySelector("code");
+      var text = (code || pre).textContent;
+
+      copyText(text)
+        .then(function () { flashCopyLabel(button, "Скопировано!", false); })
+        .catch(function () { flashCopyLabel(button, "Не удалось", true); });
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", setupCodeCopy);
+
 // Шаг урока (практика / пункт проверки). Отдельный обработчик, потому что
 // ответ у /step другой: на общий прогресс курса эти галочки не влияют,
 // обновлять шапку и счётчики фаз тут нечего.
